@@ -322,9 +322,13 @@ tracker_file = "team_tracker.json"
 
 > 💡 **获取 API Token**: 请参考 [API 文档](https://doc.skymail.ink/api/api-doc.html) 了解如何获取 `api_auth` token，然后填入 `config.toml` 的 `[email]` 配置中。
 
-### 🔐 CRS 服务
+### 🔐 CRS 服务 - Claude Relay Service
 
-ChatGPT Refresh Service - 用于 OAuth Token 管理、刷新和账号入库。
+本项目使用 [**Claude Relay Service**](https://github.com/Wei-Shaw/claude-relay-service) 作为 Token 管理服务，用于 OAuth 授权和账号入库。
+
+- **项目地址**: [https://github.com/Wei-Shaw/claude-relay-service](https://github.com/Wei-Shaw/claude-relay-service)
+
+> 💡 **配置说明**: 部署 CRS 服务后，将服务地址和管理员 Token 填入 `config.toml` 的 `[crs]` 配置中。
 
 ---
 
