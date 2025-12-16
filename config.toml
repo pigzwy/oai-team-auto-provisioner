@@ -1,0 +1,64 @@
+# ==================== OaiTeamCrsRegister 配置文件 ====================
+
+# ==================== 邮箱服务配置 ====================
+[email]
+api_base = "https://kyx-cloud-email.kkyyxx.top/api/public"
+api_auth = "8eebb42d-d120-40ce-b324-3b2199f27d63"
+domains = ["kyx03.de", "kyx.mom", "114514222.de"]
+role = "gpt-team"
+web_url = "https://kyx-cloud-email.kkyyxx.top"
+
+# ==================== CRS 服务配置 ====================
+[crs]
+api_base = "https://crs.kkyyxx.top"
+admin_token = "b28c218f2fecf18d23d2c334b5d77dea05decbc0d84ed77f82d2a43c8649aa4f"
+
+# ==================== 账号配置 ====================
+[account]
+default_password = "Kfcvivo50@2025"
+accounts_per_team = 4
+
+# ==================== 注册配置 ====================
+[register]
+name = "test"
+
+[register.birthday]
+year = "2000"
+month = "01"
+day = "01"
+
+# ==================== 请求配置 ====================
+[request]
+timeout = 30
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+
+# ==================== 验证码配置 ====================
+[verification]
+timeout = 60
+interval = 3
+max_retries = 20
+
+# ==================== 浏览器配置 ====================
+[browser]
+wait_timeout = 60
+short_wait = 10
+
+# ==================== 代理配置 ====================
+[[proxies]]
+type = "socks5"
+host = "107.173.223.230"
+port = 3456
+username = "kyx"
+password = "kyx200328"
+
+[[proxies]]
+type = "socks5"
+host = "18.219.94.109"
+port = 3456
+username = "kyx"
+password = "kyx200328"
+
+# ==================== 文件配置 ====================
+[files]
+csv_file = "accounts.csv"
+tracker_file = "team_tracker.json"
