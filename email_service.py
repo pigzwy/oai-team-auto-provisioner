@@ -13,7 +13,10 @@ from config import (
     EMAIL_API_BASE,
     EMAIL_API_AUTH,
     EMAIL_ROLE,
+    EMAIL_USE_GPTMAIL,
     DEFAULT_PASSWORD,
+    GPTMAIL_API_BASE,
+    GPTMAIL_API_KEY,
     REQUEST_TIMEOUT,
     VERIFICATION_CODE_INTERVAL,
     VERIFICATION_CODE_MAX_RETRIES,
@@ -39,6 +42,137 @@ def create_session_with_retry():
 
 # 全局 HTTP Session
 http_session = create_session_with_retry()
+
+
+def _build_gptmail_headers() -> dict:
+    """构建 GPTMail API 请求 Headers"""
+    return {"X-API-Key": GPTMAIL_API_KEY} if GPTMAIL_API_KEY else {}
+
+
+def _gptmail_url(path: str) -> str:
+    """拼接 GPTMail URL（自动处理尾部斜杠）"""
+    base = (GPTMAIL_API_BASE or "").rstrip("/")
+    return f"{base}{path}"
+
+
+def gptmail_generate_random_email() -> str:
+    """通过 GPTMail 生成一个随机邮箱地址（全随机模式）"""
+    if not GPTMAIL_API_BASE:
+        log.error("GPTMail 未配置 gptmail_api_base")
+        return ""
+    if not GPTMAIL_API_KEY:
+        log.error("GPTMail 未配置 gptmail_api_key")
+        return ""
+
+    url = _gptmail_url("/api/generate-email")
+    headers = _build_gptmail_headers()
+
+    try:
+        resp = http_session.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        data = resp.json() if resp.content else {}
+
+        if resp.status_code == 200 and data.get("success"):
+            email = (data.get("data") or {}).get("email", "")
+            if email:
+                log.success(f"生成邮箱: {email}")
+                return email
+
+        log.warning(f"GPTMail 生成邮箱失败: {data.get('error') or resp.text[:200]}")
+        return ""
+    except Exception as e:
+        log.error(f"GPTMail 生成邮箱异常: {e}")
+        return ""
+
+
+def gptmail_list_emails(email: str) -> list:
+    """获取 GPTMail 邮件列表"""
+    if not GPTMAIL_API_BASE or not GPTMAIL_API_KEY:
+        return []
+
+    url = _gptmail_url("/api/emails")
+    headers = _build_gptmail_headers()
+
+    try:
+        resp = http_session.get(url, headers=headers, params={"email": email}, timeout=REQUEST_TIMEOUT)
+        data = resp.json() if resp.content else {}
+
+        if resp.status_code == 200 and data.get("success"):
+            emails = (data.get("data") or {}).get("emails", [])
+            return emails if isinstance(emails, list) else []
+
+        log.warning(f"GPTMail 获取邮件列表失败: {data.get('error') or resp.text[:200]}")
+        return []
+    except Exception as e:
+        log.warning(f"GPTMail 获取邮件列表异常: {e}")
+        return []
+
+
+def _extract_verification_code(text: str) -> str:
+    """从文本中提取 6 位验证码（提取不到返回空字符串）"""
+    if not text:
+        return ""
+
+    # 常见主题格式（中/英）+ 兜底 6 位数字
+    patterns = [
+        r"代码为\s*(\d{6})",
+        r"code is\s*(\d{6})",
+        r"\b(\d{6})\b",
+    ]
+
+    for pat in patterns:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            return m.group(1)
+
+    return ""
+
+
+def _get_verification_code_from_gptmail(email: str, max_retries: int, interval: int) -> tuple[str, str, str]:
+    """通过 GPTMail 获取验证码（轮询 /api/emails）"""
+    start_ts = int(time.time())
+    log.info(f"等待验证码邮件(GPTMail): {email}", icon="email")
+
+    progress_shown = False
+
+    for i in range(max_retries):
+        try:
+            emails = gptmail_list_emails(email)
+            # 优先处理最新邮件
+            emails_sorted = sorted(emails, key=lambda x: x.get("timestamp", 0) or 0, reverse=True)
+
+            for mail in emails_sorted:
+                ts = mail.get("timestamp")
+                if isinstance(ts, (int, float)) and ts < start_ts - 60:
+                    continue
+
+                subject = mail.get("subject", "") or ""
+                content = mail.get("content", "") or ""
+                html = mail.get("html_content", "") or ""
+
+                code = _extract_verification_code("\n".join([subject, content, html]))
+                if code:
+                    if progress_shown:
+                        log.progress_clear()
+                    email_time_str = mail.get("created_at") or (str(int(ts)) if isinstance(ts, (int, float)) else "")
+                    log.success(f"验证码获取成功: {code}")
+                    return code, None, email_time_str
+
+        except Exception as e:
+            if progress_shown:
+                log.progress_clear()
+                progress_shown = False
+            log.warning(f"获取邮件异常: {e}")
+
+        if i < max_retries - 1:
+            elapsed = (i + 1) * interval
+            log.progress_inline(f"[等待中... {elapsed}s]")
+            progress_shown = True
+            time.sleep(interval)
+
+    if progress_shown:
+        log.progress_clear()
+    log.error("验证码获取失败 (超时)")
+    return None, "未能获取验证码", None
 
 
 def generate_random_email() -> str:
@@ -109,6 +243,9 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
     if interval is None:
         interval = VERIFICATION_CODE_INTERVAL
 
+    if EMAIL_USE_GPTMAIL:
+        return _get_verification_code_from_gptmail(email, max_retries=max_retries, interval=interval)
+
     url = f"{EMAIL_API_BASE}/emailList"
     headers = {
         "Authorization": EMAIL_API_AUTH,
@@ -136,7 +273,7 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
                     if match:
                         code = match.group(1)
                         if progress_shown:
-                        log.progress_clear()
+                            log.progress_clear()
                         log.success(f"验证码获取成功: {code}")
                         return code, None, email_time_str
 
@@ -145,7 +282,7 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
                     if match:
                         code = match.group(1)
                         if progress_shown:
-                        log.progress_clear()
+                            log.progress_clear()
                         log.success(f"验证码获取成功: {code}")
                         return code, None, email_time_str
 
@@ -154,7 +291,7 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
                     if match:
                         code = match.group(1)
                         if progress_shown:
-                        log.progress_clear()
+                            log.progress_clear()
                         log.success(f"验证码获取成功: {code}")
                         return code, None, email_time_str
 
@@ -166,7 +303,7 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
 
         if i < max_retries - 1:
             elapsed = (i + 1) * interval
-            log.progress(f"\r  [等待中... {elapsed}s]", end='', flush=True)
+            log.progress_inline(f"[等待中... {elapsed}s]")
             progress_shown = True
             time.sleep(interval)
 
@@ -214,6 +351,16 @@ def batch_create_emails(count: int = 4) -> list:
         list: [{"email": "...", "password": "..."}, ...]
     """
     accounts = []
+
+    if EMAIL_USE_GPTMAIL:
+        for _ in range(count):
+            email = gptmail_generate_random_email()
+            if not email:
+                continue
+            accounts.append({"email": email, "password": DEFAULT_PASSWORD})
+
+        log.info(f"邮箱创建完成(GPTMail): {len(accounts)}/{count}", icon="email")
+        return accounts
 
     for i in range(count):
         email = generate_random_email()

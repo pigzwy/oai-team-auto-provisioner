@@ -64,6 +64,13 @@ EMAIL_DOMAIN = EMAIL_DOMAINS[0] if EMAIL_DOMAINS else ""
 EMAIL_ROLE = _email.get("role", "gpt-team")
 EMAIL_WEB_URL = _email.get("web_url", "")
 
+# 是否使用 GPTMail（随机邮箱）
+EMAIL_USE_GPTMAIL = bool(_email.get("use_gptmail", False))
+
+# GPTMail 配置（仅在 EMAIL_USE_GPTMAIL=True 时生效）
+GPTMAIL_API_BASE = str(_email.get("gptmail_api_base", "https://mail.chatgpt.org.uk")).strip()
+GPTMAIL_API_KEY = str(_email.get("gptmail_api_key", "gpt-test")).strip()
+
 # CRS
 _crs = _cfg.get("crs", {})
 CRS_API_BASE = _crs.get("api_base", "")

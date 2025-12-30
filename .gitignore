@@ -23,6 +23,9 @@ team_tracker.json
 *.swp
 *.swo
 
+# Serena/工具缓存（本地生成，不应提交）
+.serena/
+
 # OS
 .DS_Store
 Thumbs.db

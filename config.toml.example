@@ -9,6 +9,14 @@ domains = ["example.com", "example.org"]
 role = "gpt-team"
 web_url = "https://your-email-service.com"
 
+# 是否使用 GPTMail 随机邮箱（true：使用 GPTMail；false：使用上面的邮箱服务）
+use_gptmail = false
+
+# GPTMail 配置（仅在 use_gptmail=true 时生效，默认全随机生成邮箱）
+# 说明：gpt-test 为官方文档提供的测试 key（存在每日额度限制），生产环境建议申请自己的 key
+gptmail_api_base = "https://mail.chatgpt.org.uk"
+gptmail_api_key = "gpt-test"
+
 # ==================== CRS 服务配置 ====================
 [crs]
 api_base = "https://your-crs-service.com"
