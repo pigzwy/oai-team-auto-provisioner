@@ -12,6 +12,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 
+import sv_ttk
+
 from .io_redirect import 输出重定向
 from . import runtime
 from . import worker
@@ -64,10 +66,17 @@ class 主窗口(ttk.Frame):
 
         btns = ttk.Frame(top)
         btns.pack(side="right")
-        ttk.Button(btns, text="打开工作目录", command=self._open_work_dir).pack(side="left", padx=4)
-        ttk.Button(btns, text="打开 created_credentials.csv", command=self._open_created_credentials).pack(side="left", padx=4)
-        ttk.Button(btns, text="打开 accounts.csv", command=self._open_accounts_csv).pack(side="left", padx=4)
-        ttk.Button(btns, text="打开 team_tracker.json", command=self._open_tracker_json).pack(side="left", padx=4)
+
+        # 彩色快捷按钮
+        btn_style = {"font": ("Microsoft YaHei UI", 9), "relief": "flat", "padx": 10, "pady": 4, "cursor": "hand2"}
+        tk.Button(btns, text="📁 工作目录", command=self._open_work_dir,
+                  bg="#6366f1", fg="white", activebackground="#4f46e5", activeforeground="white", **btn_style).pack(side="left", padx=3)
+        tk.Button(btns, text="📄 credentials.csv", command=self._open_created_credentials,
+                  bg="#8b5cf6", fg="white", activebackground="#7c3aed", activeforeground="white", **btn_style).pack(side="left", padx=3)
+        tk.Button(btns, text="📄 accounts.csv", command=self._open_accounts_csv,
+                  bg="#06b6d4", fg="white", activebackground="#0891b2", activeforeground="white", **btn_style).pack(side="left", padx=3)
+        tk.Button(btns, text="📄 tracker.json", command=self._open_tracker_json,
+                  bg="#f59e0b", fg="white", activebackground="#d97706", activeforeground="white", **btn_style).pack(side="left", padx=3)
 
         ctrl = ttk.Labelframe(parent, text="任务控制")
         ctrl.pack(fill="x", padx=10, pady=6)
@@ -98,7 +107,9 @@ class 主窗口(ttk.Frame):
         self._team_spin = ttk.Spinbox(row_team, from_=0, to=999, textvariable=self._team_index_var, width=6)
         ttk.Label(row_team, text="Team 索引：").pack(side="left")
         self._team_spin.pack(side="left", padx=(6, 10))
-        ttk.Button(row_team, text="刷新 Team 列表", command=self._refresh_team_list).pack(side="left")
+        tk.Button(row_team, text="🔄 刷新 Team 列表", command=self._refresh_team_list,
+                  bg="#8b5cf6", fg="white", activebackground="#7c3aed", activeforeground="white",
+                  font=("Microsoft YaHei UI", 9), relief="flat", padx=10, pady=3, cursor="hand2").pack(side="left")
 
         row_reg = ttk.Frame(ctrl)
         row_reg.pack(fill="x", padx=8, pady=(0, 8))
@@ -121,8 +132,17 @@ class 主窗口(ttk.Frame):
         act = ttk.Frame(parent)
         act.pack(fill="x", padx=10, pady=6)
 
-        self._btn_start = ttk.Button(act, text="开始", command=self._start_task)
-        self._btn_stop = ttk.Button(act, text="停止", command=self._stop_task, state="disabled")
+        # 使用彩色按钮
+        self._btn_start = tk.Button(
+            act, text="▶ 开始", command=self._start_task,
+            bg="#10b981", fg="white", activebackground="#059669", activeforeground="white",
+            font=("Microsoft YaHei UI", 10, "bold"), relief="flat", padx=16, pady=6, cursor="hand2"
+        )
+        self._btn_stop = tk.Button(
+            act, text="■ 停止", command=self._stop_task, state="disabled",
+            bg="#ef4444", fg="white", activebackground="#dc2626", activeforeground="white",
+            font=("Microsoft YaHei UI", 10, "bold"), relief="flat", padx=16, pady=6, cursor="hand2"
+        )
         self._btn_start.pack(side="left")
         self._btn_stop.pack(side="left", padx=8)
 
@@ -139,7 +159,7 @@ class 主窗口(ttk.Frame):
         log_box = ttk.Labelframe(parent, text="日志")
         log_box.pack(fill="both", expand=True, padx=10, pady=8)
 
-        self._log_text = ScrolledText(log_box, height=20, wrap="word")
+        self._log_text = ScrolledText(log_box, height=20, wrap="word", font=("Consolas", 10), bg="#fafafa", fg="#333")
         self._log_text.pack(fill="both", expand=True, padx=6, pady=6)
         self._log_text.configure(state="disabled")
 
@@ -159,15 +179,21 @@ class 主窗口(ttk.Frame):
         row1.pack(fill="x", padx=8, pady=6)
         ttk.Label(row1, text="config.toml：").pack(side="left")
         ttk.Entry(row1, textvariable=self._config_path_var, state="readonly").pack(side="left", fill="x", expand=True, padx=6)
-        ttk.Button(row1, text="打开", command=self._open_config).pack(side="left", padx=4)
-        ttk.Button(row1, text="从示例生成", command=self._create_config_from_example).pack(side="left", padx=4)
+
+        cfg_btn_style = {"font": ("Microsoft YaHei UI", 9), "relief": "flat", "padx": 10, "pady": 3, "cursor": "hand2"}
+        tk.Button(row1, text="📂 打开", command=self._open_config,
+                  bg="#3b82f6", fg="white", activebackground="#2563eb", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
+        tk.Button(row1, text="✨ 从示例生成", command=self._create_config_from_example,
+                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
 
         row2 = ttk.Frame(paths)
         row2.pack(fill="x", padx=8, pady=6)
         ttk.Label(row2, text="team.json：").pack(side="left")
         ttk.Entry(row2, textvariable=self._team_path_var, state="readonly").pack(side="left", fill="x", expand=True, padx=6)
-        ttk.Button(row2, text="打开", command=self._open_team).pack(side="left", padx=4)
-        ttk.Button(row2, text="从示例生成", command=self._create_team_from_example).pack(side="left", padx=4)
+        tk.Button(row2, text="📂 打开", command=self._open_team,
+                  bg="#3b82f6", fg="white", activebackground="#2563eb", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
+        tk.Button(row2, text="✨ 从示例生成", command=self._create_team_from_example,
+                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
 
         editors = ttk.Notebook(frm)
         editors.pack(fill="both", expand=True, pady=(10, 0))
@@ -177,19 +203,25 @@ class 主窗口(ttk.Frame):
         editors.add(tab_cfg, text="编辑 config.toml")
         editors.add(tab_team, text="编辑 team.json")
 
-        self._cfg_text = ScrolledText(tab_cfg, wrap="none")
+        self._cfg_text = ScrolledText(tab_cfg, wrap="none", font=("Consolas", 10), bg="#fafafa", fg="#333")
         self._cfg_text.pack(fill="both", expand=True, padx=6, pady=6)
         btn_cfg = ttk.Frame(tab_cfg)
         btn_cfg.pack(fill="x", padx=6, pady=(0, 6))
-        ttk.Button(btn_cfg, text="加载", command=self._load_config_text).pack(side="left")
-        ttk.Button(btn_cfg, text="保存", command=self._save_config_text).pack(side="left", padx=6)
 
-        self._team_text = ScrolledText(tab_team, wrap="none")
+        edit_btn_style = {"font": ("Microsoft YaHei UI", 9), "relief": "flat", "padx": 12, "pady": 4, "cursor": "hand2"}
+        tk.Button(btn_cfg, text="🔄 加载", command=self._load_config_text,
+                  bg="#6366f1", fg="white", activebackground="#4f46e5", activeforeground="white", **edit_btn_style).pack(side="left")
+        tk.Button(btn_cfg, text="💾 保存", command=self._save_config_text,
+                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **edit_btn_style).pack(side="left", padx=6)
+
+        self._team_text = ScrolledText(tab_team, wrap="none", font=("Consolas", 10), bg="#fafafa", fg="#333")
         self._team_text.pack(fill="both", expand=True, padx=6, pady=6)
         btn_team = ttk.Frame(tab_team)
         btn_team.pack(fill="x", padx=6, pady=(0, 6))
-        ttk.Button(btn_team, text="加载", command=self._load_team_text).pack(side="left")
-        ttk.Button(btn_team, text="保存", command=self._save_team_text).pack(side="left", padx=6)
+        tk.Button(btn_team, text="🔄 加载", command=self._load_team_text,
+                  bg="#6366f1", fg="white", activebackground="#4f46e5", activeforeground="white", **edit_btn_style).pack(side="left")
+        tk.Button(btn_team, text="💾 保存", command=self._save_team_text,
+                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **edit_btn_style).pack(side="left", padx=6)
 
         # 初始加载（若文件不存在则忽略）
         self._load_config_text(silent=True)
@@ -411,13 +443,8 @@ class 主窗口(ttk.Frame):
 
 def main() -> None:
     root = tk.Tk()
-    # ttk 主题（尽量保持系统原生风格）
-    try:
-        style = ttk.Style()
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-    except Exception:
-        pass
+    # 使用 Sun Valley 主题（Windows 11 风格）
+    sv_ttk.set_theme("light")  # 浅色主题
 
     app = 主窗口(root)
     app._on_mode_change()
