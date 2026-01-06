@@ -111,7 +111,7 @@ accounts_per_team = 4
 uv run python run.py
 
 # 单个 Team 模式
-cv run python run.py single
+uv run python run.py single
 
 # 测试模式 (仅创建邮箱和邀请)
 uv run python run.py test
@@ -123,6 +123,23 @@ uv run python run.py status
 uv run python run.py help
 ```
 
+### 5. 图形化界面（Tkinter GUI）
+
+> 适合 Windows 一键运行/打包，尽量不改动现有业务代码。
+
+```bash
+# 源码运行
+python -m tk_gui
+
+# 打包为单文件 EXE（Windows）
+powershell -ExecutionPolicy Bypass -File .\\tk_gui\\build_onefile.ps1
+```
+
+- 打包产物：`dist/oai-team-gui.exe`
+- EXE 运行时：将 `config.toml` / `team.json` 放在 EXE 同目录，或在 GUI「配置」页点“从示例生成”
+- 新增模式：GUI「运行」页提供“批量注册 OpenAI（仅注册）”，支持邮箱来源选择（域名邮箱/随机邮箱）
+- 凭据文件：创建好的邮箱与密码会写入 EXE 同目录 `created_credentials.csv`
+
 ---
 
 ## 📁 项目结构
@@ -132,6 +149,7 @@ oai-team-auto-provisioner/
 │
 ├── 🚀 run.py                 # 主入口脚本
 ├── ⚙️  config.py              # 配置加载模块
+├── 🖥️ gui_main.py            # GUI 打包入口（PyInstaller）
 │
 ├── 📧 email_service.py       # 邮箱服务 (创建用户、获取验证码)
 ├── 👥 team_service.py        # Team 服务 (邀请管理)
@@ -140,12 +158,14 @@ oai-team-auto-provisioner/
 │
 ├── 🛠️  utils.py               # 工具函数 (CSV、状态追踪)
 ├── 📊 logger.py              # 日志模块
+├── 🧩 tk_gui/                # Tkinter 图形界面（独立目录）
 │
 ├── 📝 config.toml.example    # 配置模板
 ├── 🔑 team.json.example      # Team 凭证模板
 │
 └── 📂 自动生成文件
     ├── accounts.csv          # 账号记录
+    ├── created_credentials.csv # 批量注册模式的邮箱/密码单独记录
     └── team_tracker.json     # 状态追踪
 ```
 
@@ -252,6 +272,7 @@ flowchart TB
 | 文件 | 说明 |
 |------|------|
 | `accounts.csv` | 所有账号记录 (邮箱、密码、Team、状态、CRS ID) |
+| `created_credentials.csv` | 批量注册（仅注册）模式生成的邮箱/密码记录 |
 | `team_tracker.json` | 每个 Team 的账号处理状态追踪 |
 
 ---
