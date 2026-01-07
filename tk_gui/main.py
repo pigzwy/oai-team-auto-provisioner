@@ -1,4 +1,4 @@
-"""Tkinter 图形界面主程序。"""
+"""CustomTkinter 图形界面主程序。"""
 
 from __future__ import annotations
 
@@ -9,10 +9,9 @@ import os
 import queue
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-from tkinter.scrolledtext import ScrolledText
+from tkinter import filedialog, messagebox, ttk
 
-import sv_ttk
+import customtkinter as ctk
 
 from .io_redirect import 输出重定向
 from . import runtime
@@ -26,8 +25,8 @@ class 运行状态:
     线程: threading.Thread | None = None
 
 
-class 主窗口(ttk.Frame):
-    def __init__(self, master: tk.Tk):
+class 主窗口(ctk.CTkFrame):
+    def __init__(self, master: ctk.CTk):
         super().__init__(master)
         self.master = master
         self.pack(fill="both", expand=True)
@@ -44,186 +43,214 @@ class 主窗口(ttk.Frame):
 
     # ---------------- UI 构建 ----------------
     def _build_ui(self) -> None:
-        self.master.title("OpenAI Team 自动批量注册 - Tk GUI")
-        self.master.geometry("1080x720")
+        self.master.title("OpenAI Team 自动批量注册")
+        self.master.geometry("1100x750")
 
-        nb = ttk.Notebook(self)
-        nb.pack(fill="both", expand=True)
+        # 使用 CTkTabview 替代 ttk.Notebook
+        self._tabview = ctk.CTkTabview(self, segmented_button_selected_color="#3b82f6")
+        self._tabview.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self._tab_run = ttk.Frame(nb)
-        self._tab_cfg = ttk.Frame(nb)
-        nb.add(self._tab_run, text="运行")
-        nb.add(self._tab_cfg, text="配置")
+        self._tab_run = self._tabview.add("运行")
+        self._tab_cfg = self._tabview.add("配置")
 
         self._build_run_tab(self._tab_run)
         self._build_cfg_tab(self._tab_cfg)
 
-    def _build_run_tab(self, parent: ttk.Frame) -> None:
-        top = ttk.Frame(parent)
-        top.pack(fill="x", padx=10, pady=8)
+    def _build_run_tab(self, parent: ctk.CTkFrame) -> None:
+        # 顶部工作目录和快捷按钮
+        top = ctk.CTkFrame(parent, fg_color="transparent")
+        top.pack(fill="x", padx=5, pady=(5, 10))
 
-        ttk.Label(top, text=f"工作目录：{self._run_dirs.工作目录}").pack(side="left")
+        ctk.CTkLabel(top, text=f"工作目录：{self._run_dirs.工作目录}", font=("Microsoft YaHei UI", 12)).pack(side="left")
 
-        btns = ttk.Frame(top)
+        btns = ctk.CTkFrame(top, fg_color="transparent")
         btns.pack(side="right")
 
-        # 彩色快捷按钮
-        btn_style = {"font": ("Microsoft YaHei UI", 9), "relief": "flat", "padx": 10, "pady": 4, "cursor": "hand2"}
-        tk.Button(btns, text="📁 工作目录", command=self._open_work_dir,
-                  bg="#6366f1", fg="white", activebackground="#4f46e5", activeforeground="white", **btn_style).pack(side="left", padx=3)
-        tk.Button(btns, text="📄 credentials.csv", command=self._open_created_credentials,
-                  bg="#8b5cf6", fg="white", activebackground="#7c3aed", activeforeground="white", **btn_style).pack(side="left", padx=3)
-        tk.Button(btns, text="📄 accounts.csv", command=self._open_accounts_csv,
-                  bg="#06b6d4", fg="white", activebackground="#0891b2", activeforeground="white", **btn_style).pack(side="left", padx=3)
-        tk.Button(btns, text="📄 tracker.json", command=self._open_tracker_json,
-                  bg="#f59e0b", fg="white", activebackground="#d97706", activeforeground="white", **btn_style).pack(side="left", padx=3)
+        # 快捷按钮
+        ctk.CTkButton(btns, text="📁 工作目录", command=self._open_work_dir,
+                      fg_color="#6366f1", hover_color="#4f46e5", width=100).pack(side="left", padx=3)
+        ctk.CTkButton(btns, text="📄 credentials", command=self._open_created_credentials,
+                      fg_color="#8b5cf6", hover_color="#7c3aed", width=100).pack(side="left", padx=3)
+        ctk.CTkButton(btns, text="📄 accounts", command=self._open_accounts_csv,
+                      fg_color="#06b6d4", hover_color="#0891b2", width=100).pack(side="left", padx=3)
+        ctk.CTkButton(btns, text="📄 tracker", command=self._open_tracker_json,
+                      fg_color="#f59e0b", hover_color="#d97706", width=100).pack(side="left", padx=3)
 
-        ctrl = ttk.Labelframe(parent, text="任务控制")
-        ctrl.pack(fill="x", padx=10, pady=6)
+        # 任务控制区
+        ctrl = ctk.CTkFrame(parent)
+        ctrl.pack(fill="x", padx=5, pady=5)
 
+        ctrl_title = ctk.CTkLabel(ctrl, text="任务控制", font=("Microsoft YaHei UI", 13, "bold"))
+        ctrl_title.pack(anchor="w", padx=10, pady=(10, 5))
+
+        # 模式选择（带详细说明）
         self._mode_var = tk.StringVar(value="all")
         modes = [
-            ("全量运行（所有 Team）", "all"),
-            ("单 Team 运行", "single"),
-            ("批量注册 OpenAI（仅注册）", "register"),
-            ("测试：仅邮箱创建+邀请", "test"),
-            ("状态查看", "status"),
+            ("全部 Team", "all", "遍历所有 Team，批量创建邮箱→邀请→注册→入库"),
+            ("单个 Team", "single", "只处理指定索引的 Team"),
+            ("仅注册账号", "register", "只创建邮箱并注册 OpenAI，不邀请不入库"),
+            ("仅邮箱+邀请", "test", "只创建邮箱并邀请到 Team，不注册"),
+            ("查看状态", "status", "显示当前 Team 的处理进度"),
         ]
 
-        row_mode = ttk.Frame(ctrl)
-        row_mode.pack(fill="x", padx=8, pady=6)
-        for text, val in modes:
-            ttk.Radiobutton(
+        row_mode = ctk.CTkFrame(ctrl, fg_color="transparent")
+        row_mode.pack(fill="x", padx=10, pady=5)
+        for text, val, _ in modes:
+            ctk.CTkRadioButton(
                 row_mode,
                 text=text,
                 variable=self._mode_var,
                 value=val,
                 command=self._on_mode_change,
-            ).pack(side="left", padx=8)
+                font=("Microsoft YaHei UI", 12),
+            ).pack(side="left", padx=10)
 
-        row_team = ttk.Frame(ctrl)
-        row_team.pack(fill="x", padx=8, pady=(0, 6))
+        # 模式说明标签
+        self._mode_desc_var = tk.StringVar(value=modes[0][2])
+        mode_desc_label = ctk.CTkLabel(
+            ctrl, textvariable=self._mode_desc_var,
+            font=("Microsoft YaHei UI", 11), text_color="#666"
+        )
+        mode_desc_label.pack(anchor="w", padx=15, pady=(0, 5))
+
+        # 保存模式说明映射
+        self._mode_descriptions = {val: desc for text, val, desc in modes}
+
+        # Team 索引
+        row_team = ctk.CTkFrame(ctrl, fg_color="transparent")
+        row_team.pack(fill="x", padx=10, pady=5)
         self._team_index_var = tk.IntVar(value=0)
+        ctk.CTkLabel(row_team, text="Team 索引：", font=("Microsoft YaHei UI", 12)).pack(side="left")
+        # CustomTkinter 没有 Spinbox，使用 ttk.Spinbox
         self._team_spin = ttk.Spinbox(row_team, from_=0, to=999, textvariable=self._team_index_var, width=6)
-        ttk.Label(row_team, text="Team 索引：").pack(side="left")
-        self._team_spin.pack(side="left", padx=(6, 10))
-        tk.Button(row_team, text="🔄 刷新 Team 列表", command=self._refresh_team_list,
-                  bg="#8b5cf6", fg="white", activebackground="#7c3aed", activeforeground="white",
-                  font=("Microsoft YaHei UI", 9), relief="flat", padx=10, pady=3, cursor="hand2").pack(side="left")
+        self._team_spin.pack(side="left", padx=(5, 15))
+        ctk.CTkButton(row_team, text="🔄 刷新列表", command=self._refresh_team_list,
+                      fg_color="#8b5cf6", hover_color="#7c3aed", width=100).pack(side="left")
 
-        row_reg = ttk.Frame(ctrl)
-        row_reg.pack(fill="x", padx=8, pady=(0, 8))
+        # 注册数量和邮箱来源
+        row_reg = ctk.CTkFrame(ctrl, fg_color="transparent")
+        row_reg.pack(fill="x", padx=10, pady=(5, 10))
         self._count_var = tk.IntVar(value=4)
+        ctk.CTkLabel(row_reg, text="注册数量：", font=("Microsoft YaHei UI", 12)).pack(side="left")
         self._count_spin = ttk.Spinbox(row_reg, from_=1, to=999, textvariable=self._count_var, width=6)
-        ttk.Label(row_reg, text="注册数量：").pack(side="left")
-        self._count_spin.pack(side="left", padx=(6, 14))
+        self._count_spin.pack(side="left", padx=(5, 20))
 
         self._email_source_var = tk.StringVar(value="domain")
-        ttk.Label(row_reg, text="邮箱来源：").pack(side="left")
-        self._rb_domain = ttk.Radiobutton(
-            row_reg, text="域名邮箱(Cloud Mail)", variable=self._email_source_var, value="domain"
+        ctk.CTkLabel(row_reg, text="邮箱来源：", font=("Microsoft YaHei UI", 12)).pack(side="left")
+        self._rb_domain = ctk.CTkRadioButton(
+            row_reg, text="域名邮箱(Cloud Mail)", variable=self._email_source_var, value="domain",
+            font=("Microsoft YaHei UI", 12)
         )
-        self._rb_gptmail = ttk.Radiobutton(
-            row_reg, text="随机邮箱(GPTMail)", variable=self._email_source_var, value="gptmail"
+        self._rb_gptmail = ctk.CTkRadioButton(
+            row_reg, text="随机邮箱(GPTMail)", variable=self._email_source_var, value="gptmail",
+            font=("Microsoft YaHei UI", 12)
         )
-        self._rb_domain.pack(side="left", padx=(6, 8))
+        self._rb_domain.pack(side="left", padx=(5, 15))
         self._rb_gptmail.pack(side="left")
 
-        act = ttk.Frame(parent)
-        act.pack(fill="x", padx=10, pady=6)
+        # 操作按钮
+        act = ctk.CTkFrame(parent, fg_color="transparent")
+        act.pack(fill="x", padx=5, pady=10)
 
-        # 使用彩色按钮
-        self._btn_start = tk.Button(
+        self._btn_start = ctk.CTkButton(
             act, text="▶ 开始", command=self._start_task,
-            bg="#10b981", fg="white", activebackground="#059669", activeforeground="white",
-            font=("Microsoft YaHei UI", 10, "bold"), relief="flat", padx=16, pady=6, cursor="hand2"
+            fg_color="#10b981", hover_color="#059669",
+            font=("Microsoft YaHei UI", 13, "bold"), width=120, height=40
         )
-        self._btn_stop = tk.Button(
+        self._btn_stop = ctk.CTkButton(
             act, text="■ 停止", command=self._stop_task, state="disabled",
-            bg="#ef4444", fg="white", activebackground="#dc2626", activeforeground="white",
-            font=("Microsoft YaHei UI", 10, "bold"), relief="flat", padx=16, pady=6, cursor="hand2"
+            fg_color="#ef4444", hover_color="#dc2626",
+            font=("Microsoft YaHei UI", 13, "bold"), width=120, height=40
         )
-        self._btn_start.pack(side="left")
-        self._btn_stop.pack(side="left", padx=8)
+        self._btn_start.pack(side="left", padx=5)
+        self._btn_stop.pack(side="left", padx=5)
 
         self._status_var = tk.StringVar(value="就绪")
-        ttk.Label(act, textvariable=self._status_var).pack(side="left", padx=12)
+        ctk.CTkLabel(act, textvariable=self._status_var, font=("Microsoft YaHei UI", 12)).pack(side="left", padx=15)
 
-        tip = ttk.Label(
+        # 提示
+        tip = ctk.CTkLabel(
             parent,
-            text="提示：打包版建议在 config.toml 的 [files] 中设置 csv_file=accounts.csv、tracker_file=team_tracker.json，避免输出写入临时目录。",
-            foreground="#444",
+            text="提示：打包版建议在 config.toml 的 [files] 中设置 csv_file 和 tracker_file，避免输出写入临时目录。",
+            font=("Microsoft YaHei UI", 11),
+            text_color="#666"
         )
-        tip.pack(fill="x", padx=10, pady=(0, 6))
+        tip.pack(fill="x", padx=10, pady=(0, 5))
 
-        log_box = ttk.Labelframe(parent, text="日志")
-        log_box.pack(fill="both", expand=True, padx=10, pady=8)
+        # 日志区
+        log_frame = ctk.CTkFrame(parent)
+        log_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self._log_text = ScrolledText(log_box, height=20, wrap="word", font=("Consolas", 10), bg="#fafafa", fg="#333")
-        self._log_text.pack(fill="both", expand=True, padx=6, pady=6)
+        log_title = ctk.CTkLabel(log_frame, text="日志", font=("Microsoft YaHei UI", 13, "bold"))
+        log_title.pack(anchor="w", padx=10, pady=(10, 5))
+
+        self._log_text = ctk.CTkTextbox(log_frame, font=("Consolas", 11), wrap="word")
+        self._log_text.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self._log_text.configure(state="disabled")
 
-    def _build_cfg_tab(self, parent: ttk.Frame) -> None:
-        frm = ttk.Frame(parent)
-        frm.pack(fill="both", expand=True, padx=10, pady=10)
+    def _build_cfg_tab(self, parent: ctk.CTkFrame) -> None:
+        # 配置文件路径
+        paths = ctk.CTkFrame(parent)
+        paths.pack(fill="x", padx=5, pady=5)
 
-        paths = ttk.Labelframe(frm, text="配置文件")
-        paths.pack(fill="x")
+        paths_title = ctk.CTkLabel(paths, text="配置文件", font=("Microsoft YaHei UI", 13, "bold"))
+        paths_title.pack(anchor="w", padx=10, pady=(10, 5))
 
         self._config_path, self._team_path = runtime.获取外部配置路径(self._run_dirs)
 
         self._config_path_var = tk.StringVar(value=str(self._config_path))
         self._team_path_var = tk.StringVar(value=str(self._team_path))
 
-        row1 = ttk.Frame(paths)
-        row1.pack(fill="x", padx=8, pady=6)
-        ttk.Label(row1, text="config.toml：").pack(side="left")
-        ttk.Entry(row1, textvariable=self._config_path_var, state="readonly").pack(side="left", fill="x", expand=True, padx=6)
+        # config.toml 行
+        row1 = ctk.CTkFrame(paths, fg_color="transparent")
+        row1.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(row1, text="config.toml：", font=("Microsoft YaHei UI", 12), width=100).pack(side="left")
+        ctk.CTkEntry(row1, textvariable=self._config_path_var, state="readonly", width=500).pack(side="left", padx=5)
+        ctk.CTkButton(row1, text="📂 打开", command=self._open_config,
+                      fg_color="#3b82f6", hover_color="#2563eb", width=80).pack(side="left", padx=3)
+        ctk.CTkButton(row1, text="✨ 从示例生成", command=self._create_config_from_example,
+                      fg_color="#10b981", hover_color="#059669", width=100).pack(side="left", padx=3)
 
-        cfg_btn_style = {"font": ("Microsoft YaHei UI", 9), "relief": "flat", "padx": 10, "pady": 3, "cursor": "hand2"}
-        tk.Button(row1, text="📂 打开", command=self._open_config,
-                  bg="#3b82f6", fg="white", activebackground="#2563eb", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
-        tk.Button(row1, text="✨ 从示例生成", command=self._create_config_from_example,
-                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
+        # team.json 行
+        row2 = ctk.CTkFrame(paths, fg_color="transparent")
+        row2.pack(fill="x", padx=10, pady=(0, 10))
+        ctk.CTkLabel(row2, text="team.json：", font=("Microsoft YaHei UI", 12), width=100).pack(side="left")
+        ctk.CTkEntry(row2, textvariable=self._team_path_var, state="readonly", width=500).pack(side="left", padx=5)
+        ctk.CTkButton(row2, text="📂 打开", command=self._open_team,
+                      fg_color="#3b82f6", hover_color="#2563eb", width=80).pack(side="left", padx=3)
+        ctk.CTkButton(row2, text="✨ 从示例生成", command=self._create_team_from_example,
+                      fg_color="#10b981", hover_color="#059669", width=100).pack(side="left", padx=3)
 
-        row2 = ttk.Frame(paths)
-        row2.pack(fill="x", padx=8, pady=6)
-        ttk.Label(row2, text="team.json：").pack(side="left")
-        ttk.Entry(row2, textvariable=self._team_path_var, state="readonly").pack(side="left", fill="x", expand=True, padx=6)
-        tk.Button(row2, text="📂 打开", command=self._open_team,
-                  bg="#3b82f6", fg="white", activebackground="#2563eb", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
-        tk.Button(row2, text="✨ 从示例生成", command=self._create_team_from_example,
-                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **cfg_btn_style).pack(side="left", padx=4)
+        # 编辑器 Tabview
+        editors = ctk.CTkTabview(parent, segmented_button_selected_color="#3b82f6")
+        editors.pack(fill="both", expand=True, padx=5, pady=5)
 
-        editors = ttk.Notebook(frm)
-        editors.pack(fill="both", expand=True, pady=(10, 0))
+        tab_cfg = editors.add("编辑 config.toml")
+        tab_team = editors.add("编辑 team.json")
 
-        tab_cfg = ttk.Frame(editors)
-        tab_team = ttk.Frame(editors)
-        editors.add(tab_cfg, text="编辑 config.toml")
-        editors.add(tab_team, text="编辑 team.json")
+        # config.toml 编辑器
+        self._cfg_text = ctk.CTkTextbox(tab_cfg, font=("Consolas", 11), wrap="none")
+        self._cfg_text.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self._cfg_text = ScrolledText(tab_cfg, wrap="none", font=("Consolas", 10), bg="#fafafa", fg="#333")
-        self._cfg_text.pack(fill="both", expand=True, padx=6, pady=6)
-        btn_cfg = ttk.Frame(tab_cfg)
-        btn_cfg.pack(fill="x", padx=6, pady=(0, 6))
+        btn_cfg = ctk.CTkFrame(tab_cfg, fg_color="transparent")
+        btn_cfg.pack(fill="x", padx=5, pady=5)
+        ctk.CTkButton(btn_cfg, text="🔄 加载", command=self._load_config_text,
+                      fg_color="#6366f1", hover_color="#4f46e5", width=100).pack(side="left", padx=3)
+        ctk.CTkButton(btn_cfg, text="💾 保存", command=self._save_config_text,
+                      fg_color="#10b981", hover_color="#059669", width=100).pack(side="left", padx=3)
 
-        edit_btn_style = {"font": ("Microsoft YaHei UI", 9), "relief": "flat", "padx": 12, "pady": 4, "cursor": "hand2"}
-        tk.Button(btn_cfg, text="🔄 加载", command=self._load_config_text,
-                  bg="#6366f1", fg="white", activebackground="#4f46e5", activeforeground="white", **edit_btn_style).pack(side="left")
-        tk.Button(btn_cfg, text="💾 保存", command=self._save_config_text,
-                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **edit_btn_style).pack(side="left", padx=6)
+        # team.json 编辑器
+        self._team_text = ctk.CTkTextbox(tab_team, font=("Consolas", 11), wrap="none")
+        self._team_text.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self._team_text = ScrolledText(tab_team, wrap="none", font=("Consolas", 10), bg="#fafafa", fg="#333")
-        self._team_text.pack(fill="both", expand=True, padx=6, pady=6)
-        btn_team = ttk.Frame(tab_team)
-        btn_team.pack(fill="x", padx=6, pady=(0, 6))
-        tk.Button(btn_team, text="🔄 加载", command=self._load_team_text,
-                  bg="#6366f1", fg="white", activebackground="#4f46e5", activeforeground="white", **edit_btn_style).pack(side="left")
-        tk.Button(btn_team, text="💾 保存", command=self._save_team_text,
-                  bg="#10b981", fg="white", activebackground="#059669", activeforeground="white", **edit_btn_style).pack(side="left", padx=6)
+        btn_team = ctk.CTkFrame(tab_team, fg_color="transparent")
+        btn_team.pack(fill="x", padx=5, pady=5)
+        ctk.CTkButton(btn_team, text="🔄 加载", command=self._load_team_text,
+                      fg_color="#6366f1", hover_color="#4f46e5", width=100).pack(side="left", padx=3)
+        ctk.CTkButton(btn_team, text="💾 保存", command=self._save_team_text,
+                      fg_color="#10b981", hover_color="#059669", width=100).pack(side="left", padx=3)
 
-        # 初始加载（若文件不存在则忽略）
+        # 初始加载
         self._load_config_text(silent=True)
         self._load_team_text(silent=True)
 
@@ -315,7 +342,6 @@ class 主窗口(ttk.Frame):
     def _save_team_text(self) -> None:
         p = Path(self._team_path_var.get())
         raw = self._team_text.get("1.0", "end")
-        # 简单 JSON 校验，避免保存出错
         try:
             json.loads(raw)
         except Exception as e:
@@ -328,7 +354,12 @@ class 主窗口(ttk.Frame):
     # ---------------- 运行控制 ----------------
     def _on_mode_change(self) -> None:
         val = self._mode_var.get()
+        # 更新模式说明
+        if hasattr(self, '_mode_descriptions'):
+            self._mode_desc_var.set(self._mode_descriptions.get(val, ""))
+        # 控制 Team 索引输入框
         self._team_spin.configure(state="normal" if val == "single" else "disabled")
+        # 控制注册相关选项
         reg_state = "normal" if val == "register" else "disabled"
         self._count_spin.configure(state=reg_state)
         self._rb_domain.configure(state=reg_state)
@@ -346,7 +377,6 @@ class 主窗口(ttk.Frame):
             max_idx = max(0, len(teams) - 1)
             self._team_spin.configure(to=max_idx)
         except Exception:
-            # 不强制要求 team.json 能被 GUI 解析（可能包含注释/非标准格式）
             self._team_spin.configure(to=999)
 
         self._on_mode_change()
@@ -409,7 +439,7 @@ class 主窗口(ttk.Frame):
     def _stop_task(self) -> None:
         if not self._state.正在运行 or not self._state.停止事件:
             return
-        self._status_var.set("正在停止…（等待当前步骤结束）")
+        self._status_var.set("正在停止…")
         self._state.停止事件.set()
 
     def _on_task_finished(self) -> None:
@@ -442,10 +472,11 @@ class 主窗口(ttk.Frame):
 
 
 def main() -> None:
-    root = tk.Tk()
-    # 使用 Sun Valley 主题（Windows 11 风格）
-    sv_ttk.set_theme("light")  # 浅色主题
+    # 设置外观模式和颜色主题
+    ctk.set_appearance_mode("light")  # light / dark / system
+    ctk.set_default_color_theme("blue")  # blue / green / dark-blue
 
+    root = ctk.CTk()
     app = 主窗口(root)
     app._on_mode_change()
     root.mainloop()
