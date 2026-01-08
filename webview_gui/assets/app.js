@@ -27,6 +27,23 @@ function setPill(running) {
   }
 }
 
+function setRunningUI(running) {
+  const startBtn = $("btn-start");
+  const stopBtn = $("btn-stop");
+
+  startBtn.disabled = Boolean(running);
+  stopBtn.disabled = !Boolean(running);
+
+  document
+    .querySelectorAll('input[name="mode"]')
+    .forEach((el) => (el.disabled = Boolean(running)));
+
+  // 仅锁定“运行参数”，配置编辑允许继续查看/修改（下次任务生效）
+  $("team-index").disabled = Boolean(running);
+  $("reg-count").disabled = Boolean(running);
+  $("reg-source").disabled = Boolean(running);
+}
+
 function appendLog(text) {
   if (!text) return;
   const logEl = $("log");
@@ -50,8 +67,13 @@ function switchTab(tab) {
   $("view-config").classList.toggle("view-active", tab === "config");
 }
 
+function getMode() {
+  const el = document.querySelector('input[name="mode"]:checked');
+  return el ? el.value : "all";
+}
+
 function updateModeExtras() {
-  const mode = $("mode").value;
+  const mode = getMode();
   setHidden($("mode-single"), mode !== "single");
   setHidden($("mode-register"), mode !== "register");
 }
@@ -94,7 +116,7 @@ async function createFromExample() {
 }
 
 async function startTask() {
-  const mode = $("mode").value;
+  const mode = getMode();
   const params = {};
   if (mode === "single") {
     params.team_index = Number($("team-index").value || 0);
@@ -105,6 +127,9 @@ async function startTask() {
   }
 
   await safeCall(window.pywebview.api.start_task, mode, params);
+  setPill(true);
+  setRunningUI(true);
+  switchTab("logs");
   toast("任务已启动");
 }
 
@@ -117,19 +142,57 @@ async function pollLoop() {
   if (pollLoop._busy) return;
   pollLoop._busy = true;
   try {
-    const res = await safeCall(window.pywebview.api.poll_logs, 400);
+    const res = await window.pywebview.api.poll_logs(400);
+    if (!res || res.ok !== true) {
+      const err = res && res.error ? res.error : "日志拉取失败";
+      throw new Error(err);
+    }
     appendLog(res.text || "");
-    setPill(Boolean(res.running));
+    const running = Boolean(res.running);
+    setPill(running);
+    setRunningUI(running);
+    pollLoop._fail = 0;
   } catch (_e) {
-    // safeCall 已 toast，这里避免重复弹窗
+    pollLoop._fail = (pollLoop._fail || 0) + 1;
+    // 避免每 500ms 都弹窗：首次/每 10 次提示一次
+    if (pollLoop._fail === 1 || pollLoop._fail % 10 === 0) {
+      toast(`日志轮询异常：${String(_e)}`);
+    }
   } finally {
     pollLoop._busy = false;
   }
 }
 
+async function copyText(text) {
+  const value = text || "";
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  // file:// 场景下 Clipboard API 常不可用，这里做降级复制
+  const ta = document.createElement("textarea");
+  ta.value = value;
+  ta.setAttribute("readonly", "true");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  ta.style.top = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  if (!ok) {
+    throw new Error("复制失败（浏览器限制）");
+  }
+}
+
 function wireUi(paths) {
-  $("mode").addEventListener("change", updateModeExtras);
+  document
+    .querySelectorAll('input[name="mode"]')
+    .forEach((el) => el.addEventListener("change", updateModeExtras));
   updateModeExtras();
+  setRunningUI(false);
 
   $("tab-logs").addEventListener("click", () => switchTab("logs"));
   $("tab-config").addEventListener("click", () => switchTab("config"));
@@ -149,7 +212,7 @@ function wireUi(paths) {
 
   $("btn-copy-log").addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText($("log").textContent || "");
+      await copyText($("log").textContent || "");
       toast("已复制到剪贴板");
     } catch (e) {
       toast(`复制失败: ${e}`);
@@ -189,4 +252,3 @@ window.addEventListener("pywebviewready", async () => {
     // safeCall 已 toast
   }
 });
-

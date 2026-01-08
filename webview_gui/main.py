@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import queue
@@ -18,6 +19,7 @@ import time
 import traceback
 from typing import Any, Optional
 
+import tomllib
 import webview
 
 from tk_gui import runtime
@@ -155,9 +157,13 @@ class WebviewApi:
             if self._is_running_locked():
                 return {"ok": False, "error": "已有任务正在运行"}
 
+            err = self._validate_task_request_locked(mode, params)
+            if err:
+                return {"ok": False, "error": err}
+
             stop_event = threading.Event()
             self._stop_event = stop_event
-            self._state = _任务状态(运行中=True, 模式=mode, 启动时间戳=time.time())
+            self._state = _任务状态(运行中=True, 模式=mode, 启动时间戳=time.time(), 最后错误=None)
 
             self._thread = threading.Thread(
                 target=self._run_task_thread,
@@ -233,7 +239,7 @@ class WebviewApi:
             return
 
         if mode == "status":
-            worker.show_status()
+            self._print_status_for_work_dir()
             return
 
         if mode == "register":
@@ -243,6 +249,122 @@ class WebviewApi:
             return
 
         raise ValueError(f"未知模式: {mode}")
+
+    def _validate_task_request_locked(self, mode: str, params: dict[str, Any]) -> Optional[str]:
+        """在启动线程前做快速校验，避免错误只能在日志里看到。"""
+        allowed = {"all", "single", "test", "status", "register"}
+        if mode not in allowed:
+            return f"未知模式: {mode}"
+
+        config_path, team_path = runtime.获取外部配置路径(self._run_dirs)
+
+        if mode in {"all", "single", "test"}:
+            if not config_path.exists():
+                return "缺少 config.toml，请先点击“从 example 生成”或手动创建"
+            if not team_path.exists():
+                return "缺少 team.json，请先点击“从 example 生成”或手动创建"
+
+        if mode == "register":
+            if not config_path.exists():
+                return "缺少 config.toml，请先点击“从 example 生成”或手动创建"
+
+            try:
+                count = int(params.get("count", 1))
+            except Exception:
+                return "注册数量必须是整数"
+            if count <= 0:
+                return "注册数量必须大于 0"
+            if count > 500:
+                return "注册数量过大（>500），建议分批执行"
+
+            email_source = str(params.get("email_source", "domain")).strip()
+            if email_source not in {"domain", "gptmail"}:
+                return "邮箱来源仅支持 domain 或 gptmail"
+
+        if mode == "single":
+            try:
+                team_index = int(params.get("team_index", 0))
+            except Exception:
+                return "Team 索引必须是整数"
+            if team_index < 0:
+                return "Team 索引不能小于 0"
+
+        return None
+
+    def _get_tracker_path(self) -> Path:
+        """获取 Team 追踪文件路径（优先读取 config.toml 的 [files].tracker_file）。"""
+        config_path, _team_path = runtime.获取外部配置路径(self._run_dirs)
+        tracker_name = "team_tracker.json"
+
+        if config_path.exists():
+            try:
+                cfg = tomllib.loads(config_path.read_text(encoding="utf-8"))
+                files_cfg = cfg.get("files", {}) if isinstance(cfg, dict) else {}
+                if isinstance(files_cfg, dict) and str(files_cfg.get("tracker_file", "")).strip():
+                    tracker_name = str(files_cfg["tracker_file"]).strip()
+            except Exception:
+                tracker_name = "team_tracker.json"
+
+        p = Path(tracker_name)
+        return p if p.is_absolute() else (self._run_dirs.工作目录 / p)
+
+    def _print_status_for_work_dir(self) -> None:
+        """读取工作目录下的追踪文件并打印状态（避免 onefile 下落到 _MEIPASS）。"""
+        tracker_path = self._get_tracker_path()
+        print("[GUI] 当前状态")
+        print(f"[GUI] tracker: {tracker_path}")
+
+        if not tracker_path.exists():
+            print("[GUI] 没有任何记录（未找到 team_tracker.json）")
+            return
+
+        try:
+            tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"[GUI] 读取追踪文件失败: {e}")
+            return
+
+        teams = tracker.get("teams", {}) if isinstance(tracker, dict) else {}
+        if not teams:
+            print("[GUI] 没有任何记录")
+            return
+
+        total_accounts = 0
+        total_completed = 0
+        total_incomplete = 0
+
+        for team_name, accounts in teams.items():
+            if not isinstance(accounts, list):
+                continue
+            print(f"\n[TEAM] {team_name}")
+            status_count: dict[str, int] = {}
+
+            for acc in accounts:
+                if not isinstance(acc, dict):
+                    continue
+                total_accounts += 1
+                status = str(acc.get("status", "unknown"))
+                status_count[status] = status_count.get(status, 0) + 1
+
+                email = acc.get("email", "")
+                if status == "crs_added":
+                    total_completed += 1
+                    print(f"[OK] {email} ({status})")
+                elif status in ["invited", "registered", "authorized", "processing"]:
+                    total_incomplete += 1
+                    print(f"[WARN] {email} ({status})")
+                else:
+                    total_incomplete += 1
+                    print(f"[ERR] {email} ({status})")
+
+            print(f"[TEAM] 统计: {status_count}")
+
+        print("\n" + "-" * 40)
+        print(f"[SUM] 总计: {total_accounts} 个账号")
+        print(f"[SUM] 完成: {total_completed}")
+        print(f"[SUM] 未完成: {total_incomplete}")
+        last_updated = tracker.get("last_updated", "N/A") if isinstance(tracker, dict) else "N/A"
+        print(f"[SUM] 最后更新: {last_updated}")
 
     def _is_running_locked(self) -> bool:
         return bool(self._thread is not None and self._thread.is_alive())
@@ -303,6 +425,9 @@ def main() -> None:
             width=1200,
             height=800,
             min_size=(1000, 650),
+            text_select=True,
+            zoomable=True,
+            background_color="#0b1020",
         )
         webview.start()
     except Exception as e:
