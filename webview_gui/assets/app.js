@@ -61,10 +61,11 @@ function appendLog(text) {
 }
 
 function switchTab(tab) {
-  $("tab-logs").classList.toggle("tab-active", tab === "logs");
-  $("tab-config").classList.toggle("tab-active", tab === "config");
-  $("view-logs").classList.toggle("view-active", tab === "logs");
-  $("view-config").classList.toggle("view-active", tab === "config");
+  const tabs = ["logs", "config", "status"];
+  tabs.forEach((t) => {
+    $(`tab-${t}`).classList.toggle("tab-active", tab === t);
+    $(`view-${t}`).classList.toggle("view-active", tab === t);
+  });
 }
 
 function getMode() {
@@ -101,9 +102,18 @@ async function loadFiles() {
 }
 
 async function saveFiles() {
+  const validated = await safeCall(
+    window.pywebview.api.validate_and_format,
+    $("config-text").value,
+    $("team-text").value
+  );
+
+  $("config-text").value = validated.config_text || "";
+  $("team-text").value = validated.team_text || "";
+
   await safeCall(window.pywebview.api.write_file, "config.toml", $("config-text").value);
   await safeCall(window.pywebview.api.write_file, "team.json", $("team-text").value);
-  toast("已保存配置");
+  toast("校验通过，并已保存配置");
 }
 
 async function createFromExample() {
@@ -187,6 +197,135 @@ async function copyText(text) {
   }
 }
 
+function findInLog(backwards) {
+  const term = ($("log-search").value || "").trim();
+  if (!term) {
+    toast("请输入搜索关键字");
+    return;
+  }
+
+  // 使用浏览器内置查找（WebView2/Chromium）
+  const ok = window.find(term, false, Boolean(backwards), true, false, false, false);
+  if (!ok) {
+    toast("未找到匹配内容");
+  }
+}
+
+function buildStatusText(data) {
+  if (!data || data.ok !== true) return "";
+  if (data.exists !== true) {
+    return `未找到追踪文件：${data.tracker_path || ""}`;
+  }
+
+  const t = data.totals || {};
+  let out =
+    `tracker: ${data.tracker_path}\n` +
+    `last_updated: ${data.last_updated || "N/A"}\n` +
+    `总计: ${t.accounts || 0}, 完成: ${t.completed || 0}, 未完成: ${t.incomplete || 0}\n\n`;
+
+  (data.teams || []).forEach((team) => {
+    out += `[TEAM] ${team.team}\n`;
+    out += `total=${team.total}, completed=${team.completed}, incomplete=${team.incomplete}\n`;
+    const sc = team.status_count || {};
+    out += `status_count=${JSON.stringify(sc)}\n`;
+    const inc = team.incomplete_accounts || [];
+    if (inc.length) {
+      out += `incomplete(${inc.length}):\n`;
+      inc.slice(0, 30).forEach((a) => {
+        out += `- ${a.email} (${a.status})\n`;
+      });
+      if (inc.length > 30) out += `... 还有 ${inc.length - 30} 条\n`;
+    }
+    out += "\n";
+  });
+
+  return out.trim() + "\n";
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderStatus(data) {
+  const sumEl = $("status-summary");
+  const teamsEl = $("status-teams");
+  teamsEl.innerHTML = "";
+
+  if (!data || data.ok !== true) {
+    sumEl.textContent = (data && data.error) || "状态获取失败";
+    return;
+  }
+
+  if (data.exists !== true) {
+    sumEl.textContent = `未找到追踪文件：${data.tracker_path || ""}`;
+    return;
+  }
+
+  const t = data.totals || {};
+  sumEl.innerHTML =
+    `<div class="stat-grid">` +
+    `<div class="stat"><div class="stat-k">总计账号</div><div class="stat-v">${escapeHtml(
+      t.accounts
+    )}</div></div>` +
+    `<div class="stat"><div class="stat-k">已完成</div><div class="stat-v ok">${escapeHtml(
+      t.completed
+    )}</div></div>` +
+    `<div class="stat"><div class="stat-k">未完成</div><div class="stat-v warn">${escapeHtml(
+      t.incomplete
+    )}</div></div>` +
+    `</div>` +
+    `<div class="hint status-hint">tracker：<code>${escapeHtml(
+      data.tracker_path
+    )}</code> · last_updated：<code>${escapeHtml(data.last_updated || "N/A")}</code></div>`;
+
+  const cards = (data.teams || []).map((team) => {
+    const sc = team.status_count || {};
+    const scLines = Object.keys(sc)
+      .sort()
+      .map((k) => `${k}: ${sc[k]}`)
+      .join(" · ");
+    const inc = team.incomplete_accounts || [];
+    const incLines = inc
+      .slice(0, 12)
+      .map((a) => `<li><code>${escapeHtml(a.email)}</code> <span class="muted">(${escapeHtml(a.status)})</span></li>`)
+      .join("");
+    const more = inc.length > 12 ? `<div class="hint">... 还有 ${inc.length - 12} 条未展示</div>` : "";
+
+    return (
+      `<div class="team-card">` +
+      `<div class="team-head">` +
+      `<div class="team-name">${escapeHtml(team.team)}</div>` +
+      `<div class="team-meta"><span class="muted">total</span> ${escapeHtml(
+        team.total
+      )} · <span class="muted">done</span> <span class="ok">${escapeHtml(
+        team.completed
+      )}</span> · <span class="muted">todo</span> <span class="warn">${escapeHtml(
+        team.incomplete
+      )}</span></div>` +
+      `</div>` +
+      `<div class="hint">${escapeHtml(scLines || "")}</div>` +
+      (inc.length
+        ? `<ul class="inc-list">${incLines}</ul>${more}`
+        : `<div class="hint">无未完成账号</div>`) +
+      `</div>`
+    );
+  });
+
+  teamsEl.innerHTML = cards.join("");
+}
+
+async function refreshStatus() {
+  const data = await safeCall(window.pywebview.api.get_status_summary);
+  refreshStatus._last = data;
+  renderStatus(data);
+  toast("状态已刷新", 1200);
+}
+
 function wireUi(paths) {
   document
     .querySelectorAll('input[name="mode"]')
@@ -196,6 +335,7 @@ function wireUi(paths) {
 
   $("tab-logs").addEventListener("click", () => switchTab("logs"));
   $("tab-config").addEventListener("click", () => switchTab("config"));
+  $("tab-status").addEventListener("click", () => switchTab("status"));
 
   $("btn-load").addEventListener("click", loadFiles);
   $("btn-save").addEventListener("click", saveFiles);
@@ -219,6 +359,18 @@ function wireUi(paths) {
     }
   });
 
+  $("btn-export-log").addEventListener("click", async () => {
+    const res = await safeCall(window.pywebview.api.export_log, $("log").textContent || "");
+    toast(`已导出：${res.filename}`);
+    await safeCall(window.pywebview.api.open_path, res.filename);
+  });
+
+  $("log-search").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") findInLog(false);
+  });
+  $("btn-search-next").addEventListener("click", () => findInLog(false));
+  $("btn-search-prev").addEventListener("click", () => findInLog(true));
+
   $("btn-open-workdir").addEventListener("click", () =>
     safeCall(window.pywebview.api.open_path, ".")
   );
@@ -238,6 +390,21 @@ function wireUi(paths) {
     `config：${paths.config_path}\n` +
     `team：${paths.team_path}\n` +
     `credentials：${paths.credentials_path}`;
+
+  $("btn-refresh-status").addEventListener("click", refreshStatus);
+  $("btn-open-tracker").addEventListener("click", async () => {
+    const last = refreshStatus._last;
+    if (last && last.tracker_open_name) {
+      await safeCall(window.pywebview.api.open_path, last.tracker_open_name);
+      return;
+    }
+    toast("tracker 文件不在工作目录下，无法直接打开");
+  });
+  $("btn-copy-status").addEventListener("click", async () => {
+    const txt = buildStatusText(refreshStatus._last);
+    await copyText(txt);
+    toast("已复制摘要");
+  });
 }
 
 window.addEventListener("pywebviewready", async () => {
@@ -246,6 +413,7 @@ window.addEventListener("pywebviewready", async () => {
     const paths = await safeCall(window.pywebview.api.get_paths);
     wireUi(paths);
     await loadFiles();
+    await refreshStatus();
 
     setInterval(pollLoop, 500);
   } catch (_e) {

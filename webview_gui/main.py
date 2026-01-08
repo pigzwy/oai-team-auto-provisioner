@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -124,6 +125,143 @@ class WebviewApi:
                 errors.append(f"生成失败 {dst_name}: {e}")
 
         return {"ok": len(errors) == 0, "results": created, "errors": errors}
+
+    def validate_and_format(self, config_text: str, team_text: str) -> dict[str, Any]:
+        """校验并格式化配置内容。
+
+        - config.toml：校验 TOML 语法，做轻量格式化（去除行尾空格、统一换行、确保文件末尾换行）
+        - team.json：校验 JSON，并格式化为 pretty JSON（缩进 2）
+        """
+        try:
+            tomllib.loads(config_text or "")
+        except tomllib.TOMLDecodeError as e:
+            line, col = _pos_to_line_col(config_text or "", getattr(e, "pos", 0))
+            return {"ok": False, "error": f"config.toml 解析失败：第 {line} 行，第 {col} 列：{e}"}
+        except Exception as e:
+            return {"ok": False, "error": f"config.toml 校验失败：{e}"}
+
+        try:
+            team_obj = json.loads(team_text or "")
+        except json.JSONDecodeError as e:
+            return {"ok": False, "error": f"team.json 解析失败：第 {e.lineno} 行，第 {e.colno} 列：{e.msg}"}
+        except Exception as e:
+            return {"ok": False, "error": f"team.json 校验失败：{e}"}
+
+        formatted_config = _normalize_toml_text(config_text or "")
+        formatted_team = json.dumps(team_obj, ensure_ascii=False, indent=2) + "\n"
+
+        return {
+            "ok": True,
+            "config_text": formatted_config,
+            "team_text": formatted_team,
+        }
+
+    def export_log(self, content: str) -> dict[str, Any]:
+        """导出当前日志到工作目录。"""
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"oai-team-gui-log-{ts}.txt"
+        path = (self._run_dirs.工作目录 / filename).resolve()
+        if not self._is_under_work_dir(path):
+            return {"ok": False, "error": "非法路径"}
+
+        try:
+            path.write_text(content or "", encoding="utf-8")
+            return {"ok": True, "filename": filename, "path": str(path)}
+        except Exception as e:
+            return {"ok": False, "error": f"导出失败: {e}"}
+
+    def get_status_summary(self) -> dict[str, Any]:
+        """读取追踪文件并返回结构化状态（供前端渲染）。"""
+        tracker_path = self._get_tracker_path()
+        open_name: Optional[str] = None
+        try:
+            if self._is_under_work_dir(tracker_path):
+                open_name = str(tracker_path.resolve().relative_to(self._run_dirs.工作目录.resolve()))
+        except Exception:
+            open_name = None
+
+        if not tracker_path.exists():
+            return {
+                "ok": True,
+                "exists": False,
+                "tracker_path": str(tracker_path),
+                "tracker_open_name": open_name,
+            }
+
+        try:
+            tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            return {
+                "ok": False,
+                "error": f"读取追踪文件失败: {e}",
+                "tracker_path": str(tracker_path),
+                "tracker_open_name": open_name,
+            }
+
+        teams_obj = tracker.get("teams", {}) if isinstance(tracker, dict) else {}
+        last_updated = tracker.get("last_updated") if isinstance(tracker, dict) else None
+
+        teams: list[dict[str, Any]] = []
+        total_accounts = 0
+        total_completed = 0
+        total_incomplete = 0
+
+        if isinstance(teams_obj, dict):
+            for team_name, accounts in teams_obj.items():
+                if not isinstance(accounts, list):
+                    continue
+                status_count: dict[str, int] = {}
+                incomplete_accounts: list[dict[str, str]] = []
+
+                team_total = 0
+                team_completed = 0
+                team_incomplete = 0
+
+                for acc in accounts:
+                    if not isinstance(acc, dict):
+                        continue
+                    team_total += 1
+                    total_accounts += 1
+
+                    status = str(acc.get("status", "unknown"))
+                    status_count[status] = status_count.get(status, 0) + 1
+
+                    email = str(acc.get("email", ""))
+                    if status == "crs_added":
+                        team_completed += 1
+                        total_completed += 1
+                    else:
+                        team_incomplete += 1
+                        total_incomplete += 1
+                        incomplete_accounts.append({"email": email, "status": status})
+
+                teams.append(
+                    {
+                        "team": str(team_name),
+                        "total": team_total,
+                        "completed": team_completed,
+                        "incomplete": team_incomplete,
+                        "status_count": status_count,
+                        "incomplete_accounts": incomplete_accounts,
+                    }
+                )
+
+        # 按未完成优先排序，其次总量
+        teams.sort(key=lambda x: (-(int(x.get("incomplete", 0))), -(int(x.get("total", 0))), str(x.get("team", ""))))
+
+        return {
+            "ok": True,
+            "exists": True,
+            "tracker_path": str(tracker_path),
+            "tracker_open_name": open_name,
+            "last_updated": last_updated,
+            "totals": {
+                "accounts": total_accounts,
+                "completed": total_completed,
+                "incomplete": total_incomplete,
+            },
+            "teams": teams,
+        }
 
     def open_path(self, name: str) -> dict[str, Any]:
         """在资源管理器中打开文件/目录（仅允许工作目录下）。"""
@@ -390,6 +528,35 @@ def _获取静态资源目录() -> Path:
             return fallback
 
     return Path(__file__).resolve().parent / "assets"
+
+
+def _pos_to_line_col(text: str, pos: int) -> tuple[int, int]:
+    """把解析错误的偏移量转换为行列号（1-based）。"""
+    if pos <= 0:
+        return 1, 1
+    if pos > len(text):
+        pos = len(text)
+
+    line = 1
+    last_nl = -1
+    for i, ch in enumerate(text):
+        if i >= pos:
+            break
+        if ch == "\n":
+            line += 1
+            last_nl = i
+    col = pos - last_nl
+    return line, max(1, col)
+
+
+def _normalize_toml_text(text: str) -> str:
+    """轻量格式化 TOML 文本：统一换行、去行尾空白、确保末尾换行。"""
+    s = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = [ln.rstrip() for ln in s.split("\n")]
+    out = "\n".join(lines)
+    if not out.endswith("\n"):
+        out += "\n"
+    return out
 
 
 def _弹窗错误(title: str, message: str) -> None:

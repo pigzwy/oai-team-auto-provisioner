@@ -154,6 +154,9 @@
           <button id="tab-config" class="tab" type="button">
             配置编辑
           </button>
+          <button id="tab-status" class="tab" type="button">
+            状态
+          </button>
         </div>
 
         <div id="view-logs" class="view view-active">
@@ -163,6 +166,20 @@
                 <input id="auto-scroll" type="checkbox" checked />
                 <span>自动滚动</span>
               </label>
+              <div class="search">
+                <input
+                  id="log-search"
+                  class="input input-sm"
+                  type="text"
+                  placeholder="搜索日志（Enter 查找）"
+                />
+                <button id="btn-search-prev" class="btn btn-ghost btn-sm" type="button">
+                  上一个
+                </button>
+                <button id="btn-search-next" class="btn btn-ghost btn-sm" type="button">
+                  下一个
+                </button>
+              </div>
             </div>
             <div class="toolbar-right">
               <button id="btn-clear-log" class="btn btn-ghost" type="button">
@@ -170,6 +187,9 @@
               </button>
               <button id="btn-copy-log" class="btn btn-ghost" type="button">
                 复制
+              </button>
+              <button id="btn-export-log" class="btn btn-ghost" type="button">
+                导出
               </button>
             </div>
           </div>
@@ -186,6 +206,28 @@
               <div class="editor-title">team.json</div>
               <textarea id="team-text" spellcheck="false"></textarea>
             </div>
+          </div>
+        </div>
+
+        <div id="view-status" class="view">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <button id="btn-refresh-status" class="btn btn-ghost" type="button">
+                刷新
+              </button>
+              <button id="btn-open-tracker" class="btn btn-ghost" type="button">
+                打开 tracker
+              </button>
+            </div>
+            <div class="toolbar-right">
+              <button id="btn-copy-status" class="btn btn-ghost" type="button">
+                复制摘要
+              </button>
+            </div>
+          </div>
+          <div class="status-body">
+            <div id="status-summary" class="status-summary"></div>
+            <div id="status-teams" class="status-teams"></div>
           </div>
         </div>
       </section>

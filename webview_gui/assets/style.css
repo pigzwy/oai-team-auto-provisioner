@@ -326,6 +326,29 @@ code {
   background: rgba(0, 0, 0, 0.12);
 }
 
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.input-sm {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.btn-sm {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .check {
   display: flex;
   align-items: center;
@@ -380,6 +403,97 @@ textarea {
   font-size: 12px;
   color: var(--text);
   background: rgba(0, 0, 0, 0.18);
+}
+
+.status-body {
+  height: calc(100% - 52px);
+  overflow: auto;
+  padding: 12px;
+}
+
+.status-summary {
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.status-hint {
+  margin-top: 10px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.stat-k {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stat-v {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.status-teams {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.team-card {
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.team-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.team-name {
+  font-weight: 800;
+}
+
+.team-meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+}
+
+.inc-list {
+  margin: 10px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .toast {
