@@ -23,6 +23,7 @@ from typing import Any, Optional
 import tomllib
 import webview
 
+import internal_config_store
 from tk_gui import runtime
 from tk_gui.io_redirect import 输出重定向
 from tk_gui import worker
@@ -55,76 +56,84 @@ class WebviewApi:
         return {"ok": True, "ts": time.time()}
 
     def get_paths(self) -> dict[str, Any]:
-        config_path, team_path = runtime.获取外部配置路径(self._run_dirs)
         credentials_path = self._run_dirs.工作目录 / "created_credentials.csv"
+        storage = "registry" if sys.platform.startswith("win") else "unknown"
         return {
             "ok": True,
             "work_dir": str(self._run_dirs.工作目录),
-            "config_path": str(config_path),
-            "team_path": str(team_path),
             "credentials_path": str(credentials_path),
+            "config_storage": storage,
             "frozen": runtime.是否打包运行(),
         }
 
-    def read_file(self, name: str) -> dict[str, Any]:
-        """读取工作目录下文件内容（UTF-8）。"""
-        path = (self._run_dirs.工作目录 / name).resolve()
-        if not self._is_under_work_dir(path):
-            return {"ok": False, "error": "非法路径"}
+    def get_config(self) -> dict[str, Any]:
+        """读取内部配置（不依赖外部文件）。"""
+        payload = internal_config_store.读取配置() or {}
+        config_text = payload.get("config_toml") if isinstance(payload, dict) else None
+        team_text = payload.get("team_json") if isinstance(payload, dict) else None
 
-        if not path.exists():
-            return {"ok": True, "exists": False, "path": str(path), "content": ""}
+        exists = bool(isinstance(config_text, str) and config_text.strip()) or bool(isinstance(team_text, str) and team_text.strip())
+        if exists:
+            return {
+                "ok": True,
+                "exists": True,
+                "config_text": str(config_text or ""),
+                "team_text": str(team_text or ""),
+            }
 
-        try:
-            content = path.read_text(encoding="utf-8")
-            return {"ok": True, "exists": True, "path": str(path), "content": content}
-        except Exception as e:
-            return {"ok": False, "error": f"读取失败: {e}", "path": str(path)}
+        # 没有保存过：返回 example 作为初始模板（不写入）
+        cfg_tpl = runtime.获取模板路径(self._run_dirs, "config.toml.example")
+        team_tpl = runtime.获取模板路径(self._run_dirs, "team.json.example")
+        return {
+            "ok": True,
+            "exists": False,
+            "config_text": cfg_tpl.read_text(encoding="utf-8") if cfg_tpl and cfg_tpl.exists() else "",
+            "team_text": team_tpl.read_text(encoding="utf-8") if team_tpl and team_tpl.exists() else "",
+        }
 
-    def write_file(self, name: str, content: str) -> dict[str, Any]:
-        """写入工作目录下文件内容（UTF-8）。"""
-        path = (self._run_dirs.工作目录 / name).resolve()
-        if not self._is_under_work_dir(path):
-            return {"ok": False, "error": "非法路径"}
+    def save_config(self, config_text: str, team_text: str) -> dict[str, Any]:
+        """校验并保存内部配置。"""
+        validated = self.validate_and_format(config_text or "", team_text or "")
+        if not validated.get("ok"):
+            return validated
 
-        try:
-            path.write_text(content or "", encoding="utf-8")
-            return {"ok": True, "path": str(path)}
-        except Exception as e:
-            return {"ok": False, "error": f"写入失败: {e}", "path": str(path)}
+        payload = {
+            "config_toml": validated.get("config_text", ""),
+            "team_json": validated.get("team_text", ""),
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        ok = internal_config_store.保存配置(payload)
+        if not ok:
+            return {"ok": False, "error": "保存失败：无法写入内部存储（注册表）"}
+
+        return {"ok": True}
 
     def create_from_example(self, overwrite: bool = False) -> dict[str, Any]:
-        """从 `*.example` 生成外部 `config.toml/team.json`（默认不覆盖）。"""
-        created: list[dict[str, Any]] = []
-        errors: list[str] = []
+        """从 example 初始化内部配置（默认不覆盖）。"""
+        existing = internal_config_store.读取配置() or {}
+        has_existing = bool(
+            isinstance(existing, dict)
+            and (
+                str(existing.get("config_toml", "")).strip()
+                or str(existing.get("team_json", "")).strip()
+            )
+        )
 
-        mapping = [
-            ("config.toml.example", "config.toml"),
-            ("team.json.example", "team.json"),
-        ]
+        if has_existing and not overwrite:
+            return {"ok": True, "results": [{"name": "internal", "status": "skipped"}], "errors": []}
 
-        for src_name, dst_name in mapping:
-            dst = (self._run_dirs.工作目录 / dst_name).resolve()
-            if not self._is_under_work_dir(dst):
-                errors.append(f"非法路径: {dst}")
-                continue
+        cfg_tpl = runtime.获取模板路径(self._run_dirs, "config.toml.example")
+        team_tpl = runtime.获取模板路径(self._run_dirs, "team.json.example")
+        if not cfg_tpl or not cfg_tpl.exists():
+            return {"ok": False, "error": "未找到模板: config.toml.example"}
+        if not team_tpl or not team_tpl.exists():
+            return {"ok": False, "error": "未找到模板: team.json.example"}
 
-            if dst.exists() and not overwrite:
-                created.append({"name": dst_name, "path": str(dst), "status": "skipped"})
-                continue
+        saved = self.save_config(cfg_tpl.read_text(encoding="utf-8"), team_tpl.read_text(encoding="utf-8"))
+        if not saved.get("ok"):
+            return saved
 
-            src = runtime.获取模板路径(self._run_dirs, src_name)
-            if src is None or not src.exists():
-                errors.append(f"未找到模板: {src_name}")
-                continue
-
-            try:
-                dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-                created.append({"name": dst_name, "path": str(dst), "status": "created"})
-            except Exception as e:
-                errors.append(f"生成失败 {dst_name}: {e}")
-
-        return {"ok": len(errors) == 0, "results": created, "errors": errors}
+        return {"ok": True, "results": [{"name": "internal", "status": "created"}], "errors": []}
 
     def validate_and_format(self, config_text: str, team_text: str) -> dict[str, Any]:
         """校验并格式化配置内容。
@@ -394,17 +403,17 @@ class WebviewApi:
         if mode not in allowed:
             return f"未知模式: {mode}"
 
-        config_path, team_path = runtime.获取外部配置路径(self._run_dirs)
-
         if mode in {"all", "single", "test"}:
-            if not config_path.exists():
-                return "缺少 config.toml，请先点击“从 example 生成”或手动创建"
-            if not team_path.exists():
-                return "缺少 team.json，请先点击“从 example 生成”或手动创建"
+            payload = internal_config_store.读取配置() or {}
+            if not str(payload.get("config_toml", "")).strip():
+                return "未保存配置：请先在“配置编辑”页填写并保存"
+            if not str(payload.get("team_json", "")).strip():
+                return "未保存 Team 配置：请先在“配置编辑”页填写并保存"
 
         if mode == "register":
-            if not config_path.exists():
-                return "缺少 config.toml，请先点击“从 example 生成”或手动创建"
+            payload = internal_config_store.读取配置() or {}
+            if not str(payload.get("config_toml", "")).strip():
+                return "未保存配置：请先在“配置编辑”页填写并保存"
 
             try:
                 count = int(params.get("count", 1))
@@ -430,18 +439,13 @@ class WebviewApi:
         return None
 
     def _get_tracker_path(self) -> Path:
-        """获取 Team 追踪文件路径（优先读取 config.toml 的 [files].tracker_file）。"""
-        config_path, _team_path = runtime.获取外部配置路径(self._run_dirs)
-        tracker_name = "team_tracker.json"
+        """获取 Team 追踪文件路径（从 config 模块计算，避免依赖外部 config.toml）。"""
+        try:
+            import config as config_module
 
-        if config_path.exists():
-            try:
-                cfg = tomllib.loads(config_path.read_text(encoding="utf-8"))
-                files_cfg = cfg.get("files", {}) if isinstance(cfg, dict) else {}
-                if isinstance(files_cfg, dict) and str(files_cfg.get("tracker_file", "")).strip():
-                    tracker_name = str(files_cfg["tracker_file"]).strip()
-            except Exception:
-                tracker_name = "team_tracker.json"
+            tracker_name = str(getattr(config_module, "TEAM_TRACKER_FILE", "team_tracker.json"))
+        except Exception:
+            tracker_name = "team_tracker.json"
 
         p = Path(tracker_name)
         return p if p.is_absolute() else (self._run_dirs.工作目录 / p)

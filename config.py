@@ -19,8 +19,31 @@ CONFIG_FILE = BASE_DIR / "config.toml"
 TEAM_JSON_FILE = BASE_DIR / "team.json"
 
 
+def _load_internal_payload() -> dict:
+    """从程序内部存储读取配置（Windows 注册表）。"""
+    try:
+        from internal_config_store import 读取配置
+
+        payload = 读取配置()
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
 def _load_toml() -> dict:
-    if not CONFIG_FILE.exists() or tomllib is None:
+    if tomllib is None:
+        return {}
+
+    payload = _load_internal_payload()
+    internal_text = payload.get("config_toml") if isinstance(payload, dict) else None
+    if isinstance(internal_text, str) and internal_text.strip():
+        try:
+            return tomllib.loads(internal_text)
+        except Exception:
+            # 内部配置损坏时，降级读取文件配置（如果存在）
+            pass
+
+    if not CONFIG_FILE.exists():
         return {}
     try:
         with open(CONFIG_FILE, "rb") as f:
@@ -30,6 +53,16 @@ def _load_toml() -> dict:
 
 
 def _load_teams() -> list:
+    payload = _load_internal_payload()
+    internal_text = payload.get("team_json") if isinstance(payload, dict) else None
+    if isinstance(internal_text, str) and internal_text.strip():
+        try:
+            data = json.loads(internal_text)
+            return data if isinstance(data, list) else [data]
+        except Exception:
+            # 内部配置损坏时，降级读取文件配置（如果存在）
+            pass
+
     if not TEAM_JSON_FILE.exists():
         return []
     try:

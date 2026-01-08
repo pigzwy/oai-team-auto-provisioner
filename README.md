@@ -46,15 +46,20 @@ uv sync
 pip install -r requirements.txt
 ```
 
-### 2. 配置文件
+### 2. 配置（程序内置，推荐）
+
+> 配置通过 GUI 保存到**程序内部存储**（Windows：当前用户注册表），不再需要在目录里维护 `config.toml` / `team.json`。
 
 ```bash
-# 复制配置模板
-cp config.toml.example config.toml
-cp team.json.example team.json
+# 启动 GUI（推荐）
+python -m webview_gui
 ```
 
-### 3. 编辑配置
+- 在 GUI「配置编辑」页点击“从 example 生成”
+- 填写并点击“保存配置”
+- 保存后 CLI（`python run.py`）和 GUI 会共用同一份配置
+
+### 3. 配置内容说明（在 GUI 中编辑）
 
 #### `config.toml` - 主配置文件
 
@@ -138,7 +143,7 @@ powershell -ExecutionPolicy Bypass -File .\\tk_gui\\build_onefile.ps1
 ```
 
 - 打包产物：`dist/oai-team-gui.exe`
-- EXE 运行时：将 `config.toml` / `team.json` 放在 EXE 同目录，或在 GUI「配置」页点“从示例生成”
+- EXE 运行时：首次启动后在 GUI「配置编辑」页保存配置（配置存于程序内部存储，无需外置 `config.toml` / `team.json`）
 - 新增模式：GUI「运行」页提供“批量注册 OpenAI（仅注册）”，支持邮箱来源选择（域名邮箱/随机邮箱）
 - 凭据文件：创建好的邮箱与密码会写入 EXE 同目录 `created_credentials.csv`
 - 旧版 Tk GUI（可选）：`python -m tk_gui`

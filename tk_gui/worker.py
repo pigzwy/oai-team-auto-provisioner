@@ -65,17 +65,9 @@ def _加载并刷新模块():
 
 def _检查必要配置(mods, run_dirs: runtime.运行目录) -> None:
     log = mods["logger"].log
-    config_path, team_path = runtime.获取外部配置路径(run_dirs)
-
-    if not config_path.exists():
-        log.error(f"未找到配置文件: {config_path}")
-        raise 任务异常("缺少 config.toml")
-    if not team_path.exists():
-        log.error(f"未找到 Team 配置: {team_path}")
-        raise 任务异常("缺少 team.json")
 
     if len(mods["config"].TEAMS) == 0:
-        log.error("Team 列表为空：请检查 team.json 是否正确填充")
+        log.error("Team 列表为空：请在 GUI 中保存配置后重试")
         raise 任务异常("Team 列表为空")
 
 
@@ -422,11 +414,6 @@ def _追加保存凭据(run_dirs: runtime.运行目录, email: str, password: st
 def _检查注册配置(mods, run_dirs: runtime.运行目录, email_source: str) -> None:
     log = mods["logger"].log
     config = mods["config"]
-    config_path, _team_path = runtime.获取外部配置路径(run_dirs)
-
-    if not config_path.exists():
-        log.error(f"未找到配置文件: {config_path}")
-        raise 任务异常("缺少 config.toml")
 
     if email_source not in ["domain", "gptmail"]:
         raise 任务异常("邮箱来源仅支持 domain 或 gptmail")

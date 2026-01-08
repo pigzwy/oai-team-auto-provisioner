@@ -94,11 +94,10 @@ async function safeCall(fn, ...args) {
 }
 
 async function loadFiles() {
-  const cfg = await safeCall(window.pywebview.api.read_file, "config.toml");
-  const team = await safeCall(window.pywebview.api.read_file, "team.json");
-  $("config-text").value = cfg.content || "";
-  $("team-text").value = team.content || "";
-  toast("已加载配置");
+  const res = await safeCall(window.pywebview.api.get_config);
+  $("config-text").value = res.config_text || "";
+  $("team-text").value = res.team_text || "";
+  toast(res.exists ? "已加载已保存的配置" : "已加载示例模板（尚未保存）");
 }
 
 async function saveFiles() {
@@ -107,13 +106,11 @@ async function saveFiles() {
     $("config-text").value,
     $("team-text").value
   );
-
   $("config-text").value = validated.config_text || "";
   $("team-text").value = validated.team_text || "";
 
-  await safeCall(window.pywebview.api.write_file, "config.toml", $("config-text").value);
-  await safeCall(window.pywebview.api.write_file, "team.json", $("team-text").value);
-  toast("校验通过，并已保存配置");
+  await safeCall(window.pywebview.api.save_config, $("config-text").value, $("team-text").value);
+  toast("校验通过，并已保存到程序内部配置");
 }
 
 async function createFromExample() {
@@ -374,12 +371,6 @@ function wireUi(paths) {
   $("btn-open-workdir").addEventListener("click", () =>
     safeCall(window.pywebview.api.open_path, ".")
   );
-  $("btn-open-config").addEventListener("click", () =>
-    safeCall(window.pywebview.api.open_path, "config.toml")
-  );
-  $("btn-open-team").addEventListener("click", () =>
-    safeCall(window.pywebview.api.open_path, "team.json")
-  );
   $("btn-open-credentials").addEventListener("click", () =>
     safeCall(window.pywebview.api.open_path, "created_credentials.csv")
   );
@@ -387,8 +378,7 @@ function wireUi(paths) {
   const hint = $("paths-hint");
   hint.textContent =
     `工作目录：${paths.work_dir}\n` +
-    `config：${paths.config_path}\n` +
-    `team：${paths.team_path}\n` +
+    `配置存储：${paths.config_storage}\n` +
     `credentials：${paths.credentials_path}`;
 
   $("btn-refresh-status").addEventListener("click", refreshStatus);
