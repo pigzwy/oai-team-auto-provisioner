@@ -47,7 +47,7 @@ def _save_state():
     if _tracker:
         log.info("保存状态...", icon="save")
         save_team_tracker(_tracker)
-        log.success("状态已保存到 team_tracker.json")
+        log.success("状态已保存到内部追踪记录（可在 GUI 导出）")
 
 
 def _signal_handler(signum, frame):
@@ -348,7 +348,7 @@ def test_email_only():
         save_team_tracker(_tracker)
 
         log.success(f"测试完成: {len(result.get('success', []))} 个邀请成功")
-        log.info("记录已保存到 team_tracker.json", icon="save")
+        log.info("记录已保存到内部追踪记录（可在 GUI 导出）", icon="save")
 
 
 def show_status():

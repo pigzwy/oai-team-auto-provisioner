@@ -135,6 +135,10 @@ uv run python run.py help
 > 前置条件：Windows 需要安装 **Microsoft Edge WebView2 Runtime**（多数系统已自带；缺失时程序会弹窗提示下载地址）。
 
 ```bash
+# 安装依赖（任选其一）
+uv sync
+# 或：pip install -e .
+
 # 源码运行
 python -m webview_gui
 
@@ -145,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File .\\tk_gui\\build_onefile.ps1
 - 打包产物：`dist/oai-team-gui.exe`
 - EXE 运行时：首次启动后在 GUI「配置编辑」页保存配置（配置存于程序内部存储，无需外置 `config.toml` / `team.json`）
 - 新增模式：GUI「运行」页提供“批量注册 OpenAI（仅注册）”，支持邮箱来源选择（域名邮箱/随机邮箱）
-- 凭据文件：创建好的邮箱与密码会写入 EXE 同目录 `created_credentials.csv`
+- 输出记录：账号/凭据/追踪都写入程序内部存储；需要文件时在「数据/导出」页导出到 `工作目录/exports/`
 - 旧版 Tk GUI（可选）：`python -m tk_gui`
 
 ---
@@ -173,9 +177,8 @@ oai-team-auto-provisioner/
 ├── 🔑 team.json.example      # Team 凭证模板
 │
 └── 📂 自动生成文件
-    ├── accounts.csv          # 账号记录
-    ├── created_credentials.csv # 批量注册模式的邮箱/密码单独记录
-    └── team_tracker.json     # 状态追踪
+    ├── %LOCALAPPDATA%/OaiTeamAutoProvisioner/data.sqlite  # 内部输出记录（账号/凭据/追踪）
+    └── exports/              # 手动导出时生成（CSV/JSON）
 ```
 
 ---
@@ -278,11 +281,9 @@ flowchart TB
 
 ## 📊 输出文件
 
-| 文件 | 说明 |
-|------|------|
-| `accounts.csv` | 所有账号记录 (邮箱、密码、Team、状态、CRS ID) |
-| `created_credentials.csv` | 批量注册（仅注册）模式生成的邮箱/密码记录 |
-| `team_tracker.json` | 每个 Team 的账号处理状态追踪 |
+- 默认不在工作目录生成 `accounts.csv` / `created_credentials.csv` / `team_tracker.json`
+- 记录会写入程序内部存储（Windows：`%LOCALAPPDATA%/OaiTeamAutoProvisioner/data.sqlite`）
+- 需要文件时：在 GUI「数据/导出」页导出到 `工作目录/exports/`
 
 ---
 
@@ -335,10 +336,7 @@ max_retries = 20
 wait_timeout = 60
 short_wait = 10
 
-# ==================== 文件配置 ====================
-[files]
-csv_file = "accounts.csv"
-tracker_file = "team_tracker.json"
+# 输出记录已改为程序内部存储（无需配置 [files]）。
 ```
 
 </details>

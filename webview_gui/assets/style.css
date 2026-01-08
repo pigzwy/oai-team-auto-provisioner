@@ -1,5 +1,5 @@
 :root {
-  --bg: #0f172a;
+  --bg: #0b0f14;
   --panel: rgba(255, 255, 255, 0.06);
   --panel-2: rgba(255, 255, 255, 0.08);
   --text: rgba(255, 255, 255, 0.92);
@@ -29,11 +29,11 @@ body {
   color: var(--text);
   background: radial-gradient(
       1100px 760px at 18% 0%,
-      rgba(110, 168, 254, 0.22) 0%,
+      rgba(110, 168, 254, 0.16) 0%,
       rgba(110, 168, 254, 0) 55%
     ),
-    radial-gradient(900px 620px at 88% 18%, rgba(0, 208, 132, 0.12) 0%, rgba(0, 208, 132, 0) 60%),
-    linear-gradient(180deg, #0b1220 0%, var(--bg) 60%, #070b14 100%) fixed;
+    radial-gradient(900px 620px at 88% 18%, rgba(0, 208, 132, 0.1) 0%, rgba(0, 208, 132, 0) 60%),
+    linear-gradient(180deg, #080a0f 0%, var(--bg) 60%, #06080b 100%) fixed;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
     Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
@@ -516,4 +516,43 @@ textarea {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.9);
   white-space: pre-wrap;
+}
+
+.data-body {
+  height: calc(100% - 52px);
+  overflow: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.data-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.data-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.data-pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
 }

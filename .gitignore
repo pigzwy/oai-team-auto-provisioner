@@ -18,6 +18,8 @@ accounts.csv
 created_credentials.csv
 team.json
 team_tracker.json
+exports/
+oai-team-gui-log-*.txt
 
 # IDE
 .idea/

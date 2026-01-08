@@ -52,8 +52,4 @@ max_retries = 20
 wait_timeout = 60
 short_wait = 10
 
-
-# ==================== 文件配置 ====================
-[files]
-csv_file = "accounts.csv"
-tracker_file = "team_tracker.json"
+# 输出记录已改为程序内部存储（无需配置 [files]）。

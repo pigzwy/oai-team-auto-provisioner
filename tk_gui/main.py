@@ -171,7 +171,7 @@ class 主窗口(ctk.CTkFrame):
         # 提示
         tip = ctk.CTkLabel(
             parent,
-            text="提示：打包版建议在 config.toml 的 [files] 中设置 csv_file 和 tracker_file，避免输出写入临时目录。",
+            text="提示：输出记录已写入程序内部存储；需要文件请在 WebView GUI 的「数据/导出」页导出。",
             font=("Microsoft YaHei UI", 11),
             text_color="#666"
         )

@@ -1,18 +1,16 @@
 # ==================== 工具函数模块 ====================
 # 通用工具函数: CSV 记录、JSON 追踪等
 
-import os
-import csv
 import json
 import time
 from datetime import datetime
 
-from config import CSV_FILE, TEAM_TRACKER_FILE
+import internal_output_store
 from logger import log
 
 
 def save_to_csv(email: str, password: str, team_name: str = "", status: str = "success", crs_id: str = ""):
-    """保存账号信息到 CSV 文件
+    """保存账号信息到内部记录（原 accounts.csv）。
 
     Args:
         email: 邮箱地址
@@ -21,51 +19,37 @@ def save_to_csv(email: str, password: str, team_name: str = "", status: str = "s
         status: 状态 (success/failed)
         crs_id: CRS 账号 ID
     """
-    file_exists = os.path.exists(CSV_FILE)
+    ok = internal_output_store.append_account_log(
+        email=email,
+        password=password,
+        team=team_name or "",
+        status=status or "",
+        crs_id=crs_id or "",
+    )
 
-    with open(CSV_FILE, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-
-        if not file_exists:
-            writer.writerow(['email', 'password', 'team', 'status', 'crs_id', 'timestamp'])
-
-        writer.writerow([
-            email,
-            password,
-            team_name,
-            status,
-            crs_id,
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        ])
-
-    log.info(f"保存到 {CSV_FILE}", icon="save")
+    if ok:
+        log.info("已保存到内部账号记录", icon="save")
+    else:
+        log.warning("保存账号记录失败（内部存储）")
 
 
 def load_team_tracker() -> dict:
-    """加载 Team 追踪记录
+    """加载 Team 追踪记录（内部存储）。
 
     Returns:
         dict: {"teams": {"team_name": [{"email": "...", "status": "..."}]}}
     """
-    if os.path.exists(TEAM_TRACKER_FILE):
-        try:
-            with open(TEAM_TRACKER_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            log.warning(f"加载追踪记录失败: {e}")
-
-    return {"teams": {}, "last_updated": None}
+    tracker = internal_output_store.load_team_tracker()
+    return tracker if isinstance(tracker, dict) else {"teams": {}, "last_updated": None}
 
 
 def save_team_tracker(tracker: dict):
-    """保存 Team 追踪记录"""
+    """保存 Team 追踪记录（内部存储）。"""
     tracker["last_updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    try:
-        with open(TEAM_TRACKER_FILE, 'w', encoding='utf-8') as f:
-            json.dump(tracker, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        log.warning(f"保存追踪记录失败: {e}")
+    ok = internal_output_store.save_team_tracker(tracker if isinstance(tracker, dict) else {})
+    if not ok:
+        log.warning("保存追踪记录失败（内部存储）")
 
 
 def add_account_to_tracker(tracker: dict, team_name: str, email: str, status: str = "invited"):

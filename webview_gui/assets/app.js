@@ -41,7 +41,9 @@ function setRunningUI(running) {
   // 仅锁定“运行参数”，配置编辑允许继续查看/修改（下次任务生效）
   $("team-index").disabled = Boolean(running);
   $("reg-count").disabled = Boolean(running);
-  $("reg-source").disabled = Boolean(running);
+  document
+    .querySelectorAll('input[name="reg-source"]')
+    .forEach((el) => (el.disabled = Boolean(running)));
 }
 
 function appendLog(text) {
@@ -61,7 +63,7 @@ function appendLog(text) {
 }
 
 function switchTab(tab) {
-  const tabs = ["logs", "config", "status"];
+  const tabs = ["logs", "config", "status", "data"];
   tabs.forEach((t) => {
     $(`tab-${t}`).classList.toggle("tab-active", tab === t);
     $(`view-${t}`).classList.toggle("view-active", tab === t);
@@ -71,6 +73,11 @@ function switchTab(tab) {
 function getMode() {
   const el = document.querySelector('input[name="mode"]:checked');
   return el ? el.value : "all";
+}
+
+function getRegSource() {
+  const el = document.querySelector('input[name="reg-source"]:checked');
+  return el ? el.value : "domain";
 }
 
 function updateModeExtras() {
@@ -130,7 +137,7 @@ async function startTask() {
   }
   if (mode === "register") {
     params.count = Number($("reg-count").value || 1);
-    params.email_source = $("reg-source").value;
+    params.email_source = getRegSource();
   }
 
   await safeCall(window.pywebview.api.start_task, mode, params);
@@ -211,7 +218,7 @@ function findInLog(backwards) {
 function buildStatusText(data) {
   if (!data || data.ok !== true) return "";
   if (data.exists !== true) {
-    return `未找到追踪文件：${data.tracker_path || ""}`;
+    return `暂无追踪记录\nstorage: ${data.tracker_path || ""}\n`;
   }
 
   const t = data.totals || {};
@@ -259,7 +266,9 @@ function renderStatus(data) {
   }
 
   if (data.exists !== true) {
-    sumEl.textContent = `未找到追踪文件：${data.tracker_path || ""}`;
+    sumEl.innerHTML =
+      `<div class="hint">暂无追踪记录</div>` +
+      `<div class="hint">storage：<code>${escapeHtml(data.tracker_path || "")}</code></div>`;
     return;
   }
 
@@ -323,9 +332,74 @@ async function refreshStatus() {
   toast("状态已刷新", 1200);
 }
 
+function buildAccountsText(rows) {
+  const list = rows || [];
+  if (!list.length) return "暂无账号记录\n";
+
+  let out = "created_at\tteam\tstatus\temail\tpassword\tcrs_id\n";
+  list.forEach((r) => {
+    out += `${r.created_at || ""}\t${r.team || ""}\t${r.status || ""}\t${r.email || ""}\t${r.password || ""}\t${
+      r.crs_id || ""
+    }\n`;
+  });
+  return out;
+}
+
+function buildCredentialsText(rows) {
+  const list = rows || [];
+  if (!list.length) return "暂无凭据记录\n";
+
+  let out = "created_at\tsource\temail\tpassword\n";
+  list.forEach((r) => {
+    out += `${r.created_at || ""}\t${r.source || ""}\t${r.email || ""}\t${r.password || ""}\n`;
+  });
+  return out;
+}
+
+function renderData(data) {
+  const sumEl = $("data-summary");
+  const accEl = $("data-accounts");
+  const credEl = $("data-credentials");
+
+  if (!data || data.ok !== true) {
+    sumEl.textContent = (data && data.error) || "数据获取失败";
+    accEl.textContent = "";
+    credEl.textContent = "";
+    return;
+  }
+
+  const c = data.counts || {};
+  sumEl.innerHTML =
+    `<div class="stat-grid">` +
+    `<div class="stat"><div class="stat-k">账号记录</div><div class="stat-v">${escapeHtml(
+      c.accounts || 0
+    )}</div></div>` +
+    `<div class="stat"><div class="stat-k">凭据记录</div><div class="stat-v">${escapeHtml(
+      c.credentials || 0
+    )}</div></div>` +
+    `<div class="stat"><div class="stat-k">追踪更新时间</div><div class="stat-v">${escapeHtml(
+      data.last_updated || "N/A"
+    )}</div></div>` +
+    `</div>` +
+    `<div class="hint status-hint">storage：<code>${escapeHtml(data.db_path || "")}</code> · 导出位置：<code>工作目录/exports</code></div>`;
+
+  accEl.textContent = buildAccountsText(data.accounts || []);
+  credEl.textContent = buildCredentialsText(data.credentials || []);
+}
+
+async function refreshData() {
+  const data = await safeCall(window.pywebview.api.get_output_overview, 50, 50);
+  refreshData._last = data;
+  renderData(data);
+  toast("数据已刷新", 1200);
+}
+
 function wireUi(paths) {
   document
     .querySelectorAll('input[name="mode"]')
+    .forEach((el) => el.addEventListener("change", updateModeExtras));
+  document
+    .querySelectorAll('input[name="reg-source"]')
     .forEach((el) => el.addEventListener("change", updateModeExtras));
   updateModeExtras();
   setRunningUI(false);
@@ -333,6 +407,10 @@ function wireUi(paths) {
   $("tab-logs").addEventListener("click", () => switchTab("logs"));
   $("tab-config").addEventListener("click", () => switchTab("config"));
   $("tab-status").addEventListener("click", () => switchTab("status"));
+  $("tab-data").addEventListener("click", async () => {
+    switchTab("data");
+    await refreshData();
+  });
 
   $("btn-load").addEventListener("click", loadFiles);
   $("btn-save").addEventListener("click", saveFiles);
@@ -371,29 +449,40 @@ function wireUi(paths) {
   $("btn-open-workdir").addEventListener("click", () =>
     safeCall(window.pywebview.api.open_path, ".")
   );
-  $("btn-open-credentials").addEventListener("click", () =>
-    safeCall(window.pywebview.api.open_path, "created_credentials.csv")
-  );
+  $("btn-open-data").addEventListener("click", async () => {
+    switchTab("data");
+    await refreshData();
+  });
 
   const hint = $("paths-hint");
   hint.textContent =
     `工作目录：${paths.work_dir}\n` +
     `配置存储：${paths.config_storage}\n` +
-    `credentials：${paths.credentials_path}`;
+    `输出存储：${paths.output_storage}\n` +
+    `db：${paths.db_path}`;
 
   $("btn-refresh-status").addEventListener("click", refreshStatus);
-  $("btn-open-tracker").addEventListener("click", async () => {
-    const last = refreshStatus._last;
-    if (last && last.tracker_open_name) {
-      await safeCall(window.pywebview.api.open_path, last.tracker_open_name);
-      return;
-    }
-    toast("tracker 文件不在工作目录下，无法直接打开");
-  });
   $("btn-copy-status").addEventListener("click", async () => {
     const txt = buildStatusText(refreshStatus._last);
     await copyText(txt);
     toast("已复制摘要");
+  });
+
+  $("btn-refresh-data").addEventListener("click", refreshData);
+  $("btn-export-accounts").addEventListener("click", async () => {
+    const res = await safeCall(window.pywebview.api.export_accounts_csv);
+    toast(`已导出：${res.filename}`);
+    await safeCall(window.pywebview.api.open_path, res.filename);
+  });
+  $("btn-export-credentials").addEventListener("click", async () => {
+    const res = await safeCall(window.pywebview.api.export_created_credentials_csv);
+    toast(`已导出：${res.filename}`);
+    await safeCall(window.pywebview.api.open_path, res.filename);
+  });
+  $("btn-export-tracker").addEventListener("click", async () => {
+    const res = await safeCall(window.pywebview.api.export_team_tracker_json);
+    toast(`已导出：${res.filename}`);
+    await safeCall(window.pywebview.api.open_path, res.filename);
   });
 }
 
@@ -404,6 +493,7 @@ window.addEventListener("pywebviewready", async () => {
     wireUi(paths);
     await loadFiles();
     await refreshStatus();
+    await refreshData();
 
     setInterval(pollLoop, 500);
   } catch (_e) {

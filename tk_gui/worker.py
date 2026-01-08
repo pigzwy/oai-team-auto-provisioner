@@ -7,14 +7,12 @@
 
 from __future__ import annotations
 
-import csv
-from datetime import datetime
 import importlib
 import random
 import threading
-from pathlib import Path
 
 from . import runtime
+import internal_output_store
 
 
 class 任务异常(Exception):
@@ -234,7 +232,6 @@ def _process_single_team(mods, team: dict, stop_event: threading.Event) -> list[
 def run_all(stop_event: threading.Event) -> list[dict]:
     run_dirs = runtime.获取运行目录()
     runtime.切换工作目录(run_dirs.工作目录)
-    runtime.复制外部配置到临时解压目录(run_dirs)
 
     mods = _加载并刷新模块()
     _检查必要配置(mods, run_dirs)
@@ -280,7 +277,6 @@ def run_all(stop_event: threading.Event) -> list[dict]:
 def run_single(team_index: int, stop_event: threading.Event) -> list[dict]:
     run_dirs = runtime.获取运行目录()
     runtime.切换工作目录(run_dirs.工作目录)
-    runtime.复制外部配置到临时解压目录(run_dirs)
 
     mods = _加载并刷新模块()
     _检查必要配置(mods, run_dirs)
@@ -304,7 +300,6 @@ def run_single(team_index: int, stop_event: threading.Event) -> list[dict]:
 def test_email_only(stop_event: threading.Event) -> None:
     run_dirs = runtime.获取运行目录()
     runtime.切换工作目录(run_dirs.工作目录)
-    runtime.复制外部配置到临时解压目录(run_dirs)
 
     mods = _加载并刷新模块()
     _检查必要配置(mods, run_dirs)
@@ -343,13 +338,12 @@ def test_email_only(stop_event: threading.Event) -> None:
     utils.save_team_tracker(tracker)
 
     log.success(f"测试完成: {len(result.get('success', []))} 个邀请成功")
-    log.info("记录已保存到 team_tracker.json", icon="save")
+    log.info("记录已保存到内部追踪记录（可在 GUI 导出）", icon="save")
 
 
 def show_status() -> None:
     run_dirs = runtime.获取运行目录()
     runtime.切换工作目录(run_dirs.工作目录)
-    runtime.复制外部配置到临时解压目录(run_dirs)
 
     mods = _加载并刷新模块()
 
@@ -393,22 +387,6 @@ def show_status() -> None:
     log.success(f"完成: {total_completed}")
     log.warning(f"未完成: {total_incomplete}")
     log.info(f"最后更新: {tracker.get('last_updated', 'N/A')}", icon="time")
-
-
-def _凭据文件路径(run_dirs: runtime.运行目录) -> Path:
-    return run_dirs.工作目录 / "created_credentials.csv"
-
-
-def _追加保存凭据(run_dirs: runtime.运行目录, email: str, password: str, source: str) -> None:
-    """把创建的邮箱和密码单独保存到程序同目录下。"""
-    p = _凭据文件路径(run_dirs)
-    file_exists = p.exists()
-
-    with open(p, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["email", "password", "source", "created_at"])
-        writer.writerow([email, password, source, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
 
 def _检查注册配置(mods, run_dirs: runtime.运行目录, email_source: str) -> None:
@@ -505,11 +483,10 @@ def batch_register_openai(count: int, email_source: str, stop_event: threading.E
 
 功能：
 - 邮箱来源可选：domain（域名邮箱 / Cloud Mail）或 gptmail（随机邮箱 / GPTMail）
-- 创建的邮箱与密码会单独写入工作目录 `created_credentials.csv`
+- 创建的邮箱与密码会保存到程序内部记录（可在 GUI 导出为 CSV）
 """
     run_dirs = runtime.获取运行目录()
     runtime.切换工作目录(run_dirs.工作目录)
-    runtime.复制外部配置到临时解压目录(run_dirs)
 
     mods = _加载并刷新模块()
     _检查注册配置(mods, run_dirs, email_source)
@@ -529,10 +506,12 @@ def batch_register_openai(count: int, email_source: str, stop_event: threading.E
         log.error("没有成功创建任何邮箱，结束")
         return []
 
-    # 先把凭据全部落盘（满足“单独保存到程序同目录”）
+    # 先把凭据全部写入内部存储（保证即使后续注册中断也能找回）
+    saved = 0
     for acc in accounts:
-        _追加保存凭据(run_dirs, acc["email"], acc["password"], email_source)
-    log.success(f"已保存凭据: {_凭据文件路径(run_dirs)}")
+        if internal_output_store.append_created_credential(acc["email"], acc["password"], source=email_source):
+            saved += 1
+    log.success(f"已保存凭据到内部记录: {saved}/{len(accounts)}")
 
     results: list[dict] = []
     success = 0
@@ -561,5 +540,5 @@ def batch_register_openai(count: int, email_source: str, stop_event: threading.E
 
     log.separator("=", 60)
     log.info(f"注册完成: 成功 {success}/{len(results)}")
-    log.info(f"凭据文件: {_凭据文件路径(run_dirs)}", icon="save")
+    log.info("凭据记录：已写入程序内部存储（可在 GUI 导出）", icon="save")
     return results

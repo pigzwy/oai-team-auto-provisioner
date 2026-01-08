@@ -15,8 +15,6 @@ except ImportError:
 
 # ==================== 路径 ====================
 BASE_DIR = Path(__file__).parent
-CONFIG_FILE = BASE_DIR / "config.toml"
-TEAM_JSON_FILE = BASE_DIR / "team.json"
 
 
 def _load_internal_payload() -> dict:
@@ -36,18 +34,10 @@ def _load_toml() -> dict:
 
     payload = _load_internal_payload()
     internal_text = payload.get("config_toml") if isinstance(payload, dict) else None
-    if isinstance(internal_text, str) and internal_text.strip():
-        try:
-            return tomllib.loads(internal_text)
-        except Exception:
-            # 内部配置损坏时，降级读取文件配置（如果存在）
-            pass
-
-    if not CONFIG_FILE.exists():
+    if not isinstance(internal_text, str) or not internal_text.strip():
         return {}
     try:
-        with open(CONFIG_FILE, "rb") as f:
-            return tomllib.load(f)
+        return tomllib.loads(internal_text)
     except Exception:
         return {}
 
@@ -55,20 +45,11 @@ def _load_toml() -> dict:
 def _load_teams() -> list:
     payload = _load_internal_payload()
     internal_text = payload.get("team_json") if isinstance(payload, dict) else None
-    if isinstance(internal_text, str) and internal_text.strip():
-        try:
-            data = json.loads(internal_text)
-            return data if isinstance(data, list) else [data]
-        except Exception:
-            # 内部配置损坏时，降级读取文件配置（如果存在）
-            pass
-
-    if not TEAM_JSON_FILE.exists():
+    if not isinstance(internal_text, str) or not internal_text.strip():
         return []
     try:
-        with open(TEAM_JSON_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else [data]
+        data = json.loads(internal_text)
+        return data if isinstance(data, list) else [data]
     except Exception:
         return []
 
@@ -143,10 +124,7 @@ _browser = _cfg.get("browser", {})
 BROWSER_WAIT_TIMEOUT = _browser.get("wait_timeout", 60)
 BROWSER_SHORT_WAIT = _browser.get("short_wait", 10)
 
-# 文件
-_files = _cfg.get("files", {})
-CSV_FILE = _files.get("csv_file", str(BASE_DIR / "accounts.csv"))
-TEAM_TRACKER_FILE = _files.get("tracker_file", str(BASE_DIR / "team_tracker.json"))
+# 文件（已改为内部存储；保留 BASE_DIR 仅用于其他默认值计算）
 
 # ==================== 随机姓名列表 ====================
 FIRST_NAMES = [

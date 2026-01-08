@@ -21,12 +21,17 @@ import traceback
 from typing import Any, Optional
 
 import tomllib
-import webview
 
 import internal_config_store
+import internal_output_store
 from tk_gui import runtime
 from tk_gui.io_redirect import 输出重定向
 from tk_gui import worker
+
+try:
+    import webview
+except ModuleNotFoundError:  # pragma: no cover
+    webview = None
 
 
 @dataclass
@@ -44,7 +49,6 @@ class WebviewApi:
     def __init__(self) -> None:
         self._run_dirs = runtime.获取运行目录()
         runtime.切换工作目录(self._run_dirs.工作目录)
-        runtime.复制外部配置到临时解压目录(self._run_dirs)
 
         self._log_queue: "queue.Queue[str]" = queue.Queue()
         self._lock = threading.Lock()
@@ -56,13 +60,14 @@ class WebviewApi:
         return {"ok": True, "ts": time.time()}
 
     def get_paths(self) -> dict[str, Any]:
-        credentials_path = self._run_dirs.工作目录 / "created_credentials.csv"
         storage = "registry" if sys.platform.startswith("win") else "unknown"
         return {
             "ok": True,
             "work_dir": str(self._run_dirs.工作目录),
-            "credentials_path": str(credentials_path),
             "config_storage": storage,
+            "output_storage": "sqlite",
+            "data_dir": str(internal_output_store.get_data_dir()),
+            "db_path": str(internal_output_store.get_db_path()),
             "frozen": runtime.是否打包运行(),
         }
 
@@ -180,40 +185,26 @@ class WebviewApi:
             return {"ok": False, "error": f"导出失败: {e}"}
 
     def get_status_summary(self) -> dict[str, Any]:
-        """读取追踪文件并返回结构化状态（供前端渲染）。"""
-        tracker_path = self._get_tracker_path()
-        open_name: Optional[str] = None
-        try:
-            if self._is_under_work_dir(tracker_path):
-                open_name = str(tracker_path.resolve().relative_to(self._run_dirs.工作目录.resolve()))
-        except Exception:
-            open_name = None
-
-        if not tracker_path.exists():
-            return {
-                "ok": True,
-                "exists": False,
-                "tracker_path": str(tracker_path),
-                "tracker_open_name": open_name,
-            }
-
-        try:
-            tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            return {
-                "ok": False,
-                "error": f"读取追踪文件失败: {e}",
-                "tracker_path": str(tracker_path),
-                "tracker_open_name": open_name,
-            }
-
+        """读取内部追踪记录并返回结构化状态（供前端渲染）。"""
+        tracker = internal_output_store.load_team_tracker()
         teams_obj = tracker.get("teams", {}) if isinstance(tracker, dict) else {}
         last_updated = tracker.get("last_updated") if isinstance(tracker, dict) else None
+        tracker_path = str(internal_output_store.get_db_path())
 
         teams: list[dict[str, Any]] = []
         total_accounts = 0
         total_completed = 0
         total_incomplete = 0
+
+        if not isinstance(teams_obj, dict) or not teams_obj:
+            return {
+                "ok": True,
+                "exists": False,
+                "tracker_path": tracker_path,
+                "last_updated": last_updated,
+                "totals": {"accounts": 0, "completed": 0, "incomplete": 0},
+                "teams": [],
+            }
 
         if isinstance(teams_obj, dict):
             for team_name, accounts in teams_obj.items():
@@ -261,8 +252,7 @@ class WebviewApi:
         return {
             "ok": True,
             "exists": True,
-            "tracker_path": str(tracker_path),
-            "tracker_open_name": open_name,
+            "tracker_path": tracker_path,
             "last_updated": last_updated,
             "totals": {
                 "accounts": total_accounts,
@@ -271,6 +261,58 @@ class WebviewApi:
             },
             "teams": teams,
         }
+
+    def get_output_overview(self, accounts_limit: int = 50, credentials_limit: int = 50) -> dict[str, Any]:
+        """获取内部输出概览：账号记录/凭据记录/追踪最后更新时间。"""
+        accounts = internal_output_store.list_accounts(limit=int(accounts_limit))
+        credentials = internal_output_store.list_created_credentials(limit=int(credentials_limit))
+        counts = internal_output_store.get_counts()
+        tracker = internal_output_store.load_team_tracker()
+
+        return {
+            "ok": True,
+            "counts": counts,
+            "db_path": str(internal_output_store.get_db_path()),
+            "last_updated": tracker.get("last_updated") if isinstance(tracker, dict) else None,
+            "accounts": accounts,
+            "credentials": credentials,
+        }
+
+    def export_accounts_csv(self) -> dict[str, Any]:
+        """导出账号记录到工作目录 exports/accounts.csv。"""
+        filename = "exports/accounts.csv"
+        path = (self._run_dirs.工作目录 / filename).resolve()
+        if not self._is_under_work_dir(path):
+            return {"ok": False, "error": "非法路径"}
+
+        ok = internal_output_store.export_accounts_csv(path)
+        if not ok:
+            return {"ok": False, "error": "导出失败"}
+        return {"ok": True, "filename": filename, "path": str(path)}
+
+    def export_created_credentials_csv(self) -> dict[str, Any]:
+        """导出凭据记录到工作目录 exports/created_credentials.csv。"""
+        filename = "exports/created_credentials.csv"
+        path = (self._run_dirs.工作目录 / filename).resolve()
+        if not self._is_under_work_dir(path):
+            return {"ok": False, "error": "非法路径"}
+
+        ok = internal_output_store.export_created_credentials_csv(path)
+        if not ok:
+            return {"ok": False, "error": "导出失败"}
+        return {"ok": True, "filename": filename, "path": str(path)}
+
+    def export_team_tracker_json(self) -> dict[str, Any]:
+        """导出追踪记录到工作目录 exports/team_tracker.json。"""
+        filename = "exports/team_tracker.json"
+        path = (self._run_dirs.工作目录 / filename).resolve()
+        if not self._is_under_work_dir(path):
+            return {"ok": False, "error": "非法路径"}
+
+        ok = internal_output_store.export_tracker_json(path)
+        if not ok:
+            return {"ok": False, "error": "导出失败"}
+        return {"ok": True, "filename": filename, "path": str(path)}
 
     def open_path(self, name: str) -> dict[str, Any]:
         """在资源管理器中打开文件/目录（仅允许工作目录下）。"""
@@ -386,7 +428,7 @@ class WebviewApi:
             return
 
         if mode == "status":
-            self._print_status_for_work_dir()
+            worker.show_status()
             return
 
         if mode == "register":
@@ -437,84 +479,6 @@ class WebviewApi:
                 return "Team 索引不能小于 0"
 
         return None
-
-    def _get_tracker_path(self) -> Path:
-        """获取 Team 追踪文件路径（从 config 模块计算，避免依赖外部 config.toml）。"""
-        try:
-            import config as config_module
-
-            tracker_name = str(getattr(config_module, "TEAM_TRACKER_FILE", "team_tracker.json"))
-        except Exception:
-            tracker_name = "team_tracker.json"
-
-        p = Path(tracker_name)
-        return p if p.is_absolute() else (self._run_dirs.工作目录 / p)
-
-    def _print_status_for_work_dir(self) -> None:
-        """读取工作目录下的追踪文件并打印状态（避免 onefile 下落到 _MEIPASS）。"""
-        import logger as logger_module
-
-        log = logger_module.log
-        try:
-            log.use_color = False
-        except Exception:
-            pass
-
-        tracker_path = self._get_tracker_path()
-        log.header("当前状态（GUI）")
-        log.info(f"tracker: {tracker_path}", icon="time")
-
-        if not tracker_path.exists():
-            log.info("没有任何记录（未找到 team_tracker.json）")
-            return
-
-        try:
-            tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            log.error(f"读取追踪文件失败: {e}")
-            return
-
-        teams = tracker.get("teams", {}) if isinstance(tracker, dict) else {}
-        if not teams:
-            log.info("没有任何记录")
-            return
-
-        total_accounts = 0
-        total_completed = 0
-        total_incomplete = 0
-
-        for team_name, accounts in teams.items():
-            if not isinstance(accounts, list):
-                continue
-            log.info(f"{team_name}:", icon="team")
-            status_count: dict[str, int] = {}
-
-            for acc in accounts:
-                if not isinstance(acc, dict):
-                    continue
-                total_accounts += 1
-                status = str(acc.get("status", "unknown"))
-                status_count[status] = status_count.get(status, 0) + 1
-
-                email = acc.get("email", "")
-                if status == "crs_added":
-                    total_completed += 1
-                    log.success(f"{email} ({status})")
-                elif status in ["invited", "registered", "authorized", "processing"]:
-                    total_incomplete += 1
-                    log.warning(f"{email} ({status})")
-                else:
-                    total_incomplete += 1
-                    log.error(f"{email} ({status})")
-
-            log.info(f"统计: {status_count}")
-
-        log.separator("-", 40)
-        log.info(f"总计: {total_accounts} 个账号")
-        log.success(f"完成: {total_completed}")
-        log.warning(f"未完成: {total_incomplete}")
-        last_updated = tracker.get("last_updated", "N/A") if isinstance(tracker, dict) else "N/A"
-        log.info(f"最后更新: {last_updated}", icon="time")
 
     def _is_running_locked(self) -> bool:
         return bool(self._thread is not None and self._thread.is_alive())
@@ -596,6 +560,17 @@ def main() -> None:
         _弹窗错误("启动失败", f"未找到前端资源: {index_file}")
         return
 
+    if webview is None:
+        _弹窗错误(
+            "启动失败",
+            "缺少依赖：pywebview（import webview 失败）。\n\n"
+            "请先安装依赖后再运行：\n"
+            "  - pip install -U pywebview\n"
+            "或使用 uv：\n"
+            "  - uv sync\n",
+        )
+        return
+
     try:
         webview.create_window(
             title="OAI Team Auto Provisioner",
@@ -606,7 +581,7 @@ def main() -> None:
             min_size=(1000, 650),
             text_select=True,
             zoomable=True,
-            background_color="#0f172a",
+            background_color="#0b0f14",
         )
         webview.start()
     except Exception as e:

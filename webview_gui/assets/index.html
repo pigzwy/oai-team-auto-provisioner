@@ -56,7 +56,7 @@
                 <input type="radio" name="mode" value="status" />
                 <div class="mode-content">
                   <div class="mode-title">状态</div>
-                  <div class="mode-desc">读取 team_tracker.json</div>
+                  <div class="mode-desc">读取内部追踪记录</div>
                 </div>
               </label>
 
@@ -82,16 +82,27 @@
               <div class="field-label">注册数量</div>
               <input id="reg-count" class="input" type="number" value="5" />
             </label>
-            <label class="field">
+            <div class="field">
               <div class="field-label">邮箱来源</div>
-              <select id="reg-source" class="select">
-                <option value="domain">域名邮箱（Cloud Mail）</option>
-                <option value="gptmail">随机邮箱（GPTMail）</option>
-              </select>
-            </label>
+              <div class="mode-grid" role="radiogroup" aria-label="邮箱来源">
+                <label class="mode-card">
+                  <input type="radio" name="reg-source" value="domain" checked />
+                  <div class="mode-content">
+                    <div class="mode-title">域名邮箱</div>
+                    <div class="mode-desc">Cloud Mail（可控域名）</div>
+                  </div>
+                </label>
+                <label class="mode-card">
+                  <input type="radio" name="reg-source" value="gptmail" />
+                  <div class="mode-content">
+                    <div class="mode-title">随机邮箱</div>
+                    <div class="mode-desc">GPTMail（无需域名）</div>
+                  </div>
+                </label>
+              </div>
+            </div>
             <div class="hint">
-              创建的邮箱与密码会写入同目录：
-              <code>created_credentials.csv</code>
+              创建的邮箱与密码会写入程序内部存储（可在「数据/导出」页查看与导出）。
             </div>
           </div>
 
@@ -106,15 +117,13 @@
         </div>
 
         <div class="card">
-          <div class="card-title">文件</div>
-          <div class="file-row">
-            <button id="btn-open-credentials" class="btn btn-ghost" type="button">
-              打开 created_credentials.csv
+          <div class="card-title">数据/导出</div>
+          <div class="btn-col">
+            <button id="btn-open-data" class="btn btn-ghost" type="button">
+              打开「数据/导出」页
             </button>
           </div>
-          <div class="hint" id="paths-hint">
-            配置已由程序内部保存（不再需要 config.toml / team.json）。
-          </div>
+          <div class="hint" id="paths-hint"></div>
         </div>
 
         <div class="card">
@@ -146,6 +155,9 @@
           </button>
           <button id="tab-status" class="tab" type="button">
             状态
+          </button>
+          <button id="tab-data" class="tab" type="button">
+            数据/导出
           </button>
         </div>
 
@@ -205,9 +217,6 @@
               <button id="btn-refresh-status" class="btn btn-ghost" type="button">
                 刷新
               </button>
-              <button id="btn-open-tracker" class="btn btn-ghost" type="button">
-                打开 tracker
-              </button>
             </div>
             <div class="toolbar-right">
               <button id="btn-copy-status" class="btn btn-ghost" type="button">
@@ -218,6 +227,40 @@
           <div class="status-body">
             <div id="status-summary" class="status-summary"></div>
             <div id="status-teams" class="status-teams"></div>
+          </div>
+        </div>
+
+        <div id="view-data" class="view">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <button id="btn-refresh-data" class="btn btn-ghost" type="button">
+                刷新
+              </button>
+            </div>
+            <div class="toolbar-right">
+              <button id="btn-export-accounts" class="btn btn-ghost" type="button">
+                导出 accounts.csv
+              </button>
+              <button id="btn-export-credentials" class="btn btn-ghost" type="button">
+                导出 created_credentials.csv
+              </button>
+              <button id="btn-export-tracker" class="btn btn-ghost" type="button">
+                导出 team_tracker.json
+              </button>
+            </div>
+          </div>
+          <div class="data-body">
+            <div id="data-summary" class="status-summary"></div>
+            <div class="data-split">
+              <div class="data-panel">
+                <div class="editor-title">账号记录（最近 50）</div>
+                <pre id="data-accounts" class="data-pre"></pre>
+              </div>
+              <div class="data-panel">
+                <div class="editor-title">凭据记录（最近 50）</div>
+                <pre id="data-credentials" class="data-pre"></pre>
+              </div>
+            </div>
           </div>
         </div>
       </section>

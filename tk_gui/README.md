@@ -1,8 +1,14 @@
-# Tkinter GUI（最小化开发版）
+# Tk GUI（旧版/可选）
 
-该目录为纯 GUI 代码，尽量不改动现有业务模块，便于后续维护与升级。
+该目录保留为旧版 GUI 参考实现；当前项目推荐使用 `webview_gui/`（pywebview WebView2）作为主要图形界面。
 
-## ✅ 运行（源码模式）
+## ✅ 重要变化（请先读）
+
+- 配置：已改为**程序内部存储**（Windows：当前用户注册表），不再从工作目录读取 `config.toml` / `team.json`。
+- 输出：账号/凭据/追踪已改为写入**内部数据库**（Windows：`%LOCALAPPDATA%/OaiTeamAutoProvisioner/data.sqlite`），默认不会在工作目录生成 `accounts.csv` / `created_credentials.csv` / `team_tracker.json`。
+- 导出：需要文件时，请在 WebView GUI 的「数据/导出」页导出到 `工作目录/exports/`。
+
+## ▶️ 运行（源码）
 
 在仓库根目录执行：
 
@@ -10,52 +16,5 @@
 python -m tk_gui
 ```
 
-## ⚙️ 配置文件位置
+> 提示：若你要用 Tk GUI 跑任务，请先用 `python -m webview_gui` 在「配置编辑」页保存好配置（写入内部存储），再在 Tk GUI 中执行任务。
 
-- `config.toml`
-- `team.json`
-
-GUI 默认使用“工作目录”下的这两个文件：
-- 源码运行：仓库根目录
-- 打包运行：exe 同目录
-
-## 🆕 批量注册 OpenAI（仅注册）
-
-GUI 的“运行”页提供“批量注册 OpenAI（仅注册）”模式：
-- 邮箱来源可选：`域名邮箱(Cloud Mail)` 或 `随机邮箱(GPTMail)`
-- 创建出来的邮箱与密码会单独写入工作目录：`created_credentials.csv`
-
-## 📦 打包为单文件 EXE（PyInstaller onefile）
-
-> 提示：打包版为了兼容现有 `config.py` 的寻址方式，会在运行任务前把外部 `config.toml/team.json` 复制到 PyInstaller 的临时解压目录。
-
-1) 安装 PyInstaller（建议在 venv 中）
-
-```bash
-python -m pip install -U pyinstaller
-```
-
-2) 在仓库根目录执行（示例命令）
-
-```bash
-pyinstaller --noconfirm --clean --onefile --noconsole --name oai-team-gui ^
-  --add-data "config.toml.example;." ^
-  --add-data "team.json.example;." ^
-  gui_main.py
-```
-
-输出在 `dist/oai-team-gui.exe`。
-
-> 如果要重新打包，请先关闭正在运行的 `oai-team-gui.exe`，否则会因为文件占用导致打包失败。
-
-## ⚠️ 打包版输出文件建议
-
-建议在 `config.toml` 中显式设置：
-
-```toml
-[files]
-csv_file = "accounts.csv"
-tracker_file = "team_tracker.json"
-```
-
-这样输出会落在 exe 同目录（GUI 也默认从该目录打开）。
