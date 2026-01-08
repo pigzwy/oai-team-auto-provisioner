@@ -123,13 +123,15 @@ uv run python run.py status
 uv run python run.py help
 ```
 
-### 5. 图形化界面（Tkinter GUI）
+### 5. 图形化界面（pywebview WebView GUI）
 
-> 适合 Windows 一键运行/打包，尽量不改动现有业务代码。
+> 适合 Windows 一键运行/打包，界面更现代；尽量不改动现有业务代码。
+>
+> 前置条件：Windows 需要安装 **Microsoft Edge WebView2 Runtime**（多数系统已自带；缺失时程序会弹窗提示下载地址）。
 
 ```bash
 # 源码运行
-python -m tk_gui
+python -m webview_gui
 
 # 打包为单文件 EXE（Windows）
 powershell -ExecutionPolicy Bypass -File .\\tk_gui\\build_onefile.ps1
@@ -139,6 +141,7 @@ powershell -ExecutionPolicy Bypass -File .\\tk_gui\\build_onefile.ps1
 - EXE 运行时：将 `config.toml` / `team.json` 放在 EXE 同目录，或在 GUI「配置」页点“从示例生成”
 - 新增模式：GUI「运行」页提供“批量注册 OpenAI（仅注册）”，支持邮箱来源选择（域名邮箱/随机邮箱）
 - 凭据文件：创建好的邮箱与密码会写入 EXE 同目录 `created_credentials.csv`
+- 旧版 Tk GUI（可选）：`python -m tk_gui`
 
 ---
 
@@ -158,7 +161,8 @@ oai-team-auto-provisioner/
 │
 ├── 🛠️  utils.py               # 工具函数 (CSV、状态追踪)
 ├── 📊 logger.py              # 日志模块
-├── 🧩 tk_gui/                # Tkinter 图形界面（独立目录）
+├── 🧩 tk_gui/                # Tkinter 图形界面（旧版，独立目录）
+├── 🌐 webview_gui/           # pywebview 图形界面（新版，独立目录）
 │
 ├── 📝 config.toml.example    # 配置模板
 ├── 🔑 team.json.example      # Team 凭证模板

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OAI Team Auto Provisioner</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="title">
+        <div class="app-name">OAI Team Auto Provisioner</div>
+        <div class="app-sub">pywebview · 本地运行 · 不上传数据</div>
+      </div>
+      <div class="status">
+        <span id="status-pill" class="pill pill-idle">空闲</span>
+        <button id="btn-open-workdir" class="btn btn-ghost" type="button">
+          打开目录
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel controls">
+        <div class="card">
+          <div class="card-title">运行</div>
+
+          <label class="field">
+            <div class="field-label">模式</div>
+            <select id="mode" class="select">
+              <option value="all">全量（所有 Team）</option>
+              <option value="single">单 Team</option>
+              <option value="test">测试（仅邮箱创建+邀请）</option>
+              <option value="status">状态（读取 team_tracker.json）</option>
+              <option value="register">批量注册 OpenAI（仅注册）</option>
+            </select>
+          </label>
+
+          <div id="mode-single" class="mode-extra hidden">
+            <label class="field">
+              <div class="field-label">Team 索引（从 0 开始）</div>
+              <input id="team-index" class="input" type="number" value="0" />
+            </label>
+          </div>
+
+          <div id="mode-register" class="mode-extra hidden">
+            <label class="field">
+              <div class="field-label">注册数量</div>
+              <input id="reg-count" class="input" type="number" value="5" />
+            </label>
+            <label class="field">
+              <div class="field-label">邮箱来源</div>
+              <select id="reg-source" class="select">
+                <option value="domain">域名邮箱（Cloud Mail）</option>
+                <option value="gptmail">随机邮箱（GPTMail）</option>
+              </select>
+            </label>
+            <div class="hint">
+              创建的邮箱与密码会写入同目录：
+              <code>created_credentials.csv</code>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button id="btn-start" class="btn btn-primary" type="button">
+              开始
+            </button>
+            <button id="btn-stop" class="btn btn-danger" type="button">
+              停止
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">文件</div>
+          <div class="file-row">
+            <button id="btn-open-config" class="btn btn-ghost" type="button">
+              打开 config.toml
+            </button>
+            <button id="btn-open-team" class="btn btn-ghost" type="button">
+              打开 team.json
+            </button>
+          </div>
+          <div class="file-row">
+            <button
+              id="btn-open-credentials"
+              class="btn btn-ghost"
+              type="button"
+            >
+              打开 created_credentials.csv
+            </button>
+          </div>
+          <div class="hint" id="paths-hint"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">配置</div>
+          <div class="btn-col">
+            <button id="btn-load" class="btn btn-ghost" type="button">
+              加载配置
+            </button>
+            <button id="btn-save" class="btn btn-primary" type="button">
+              保存配置
+            </button>
+            <button id="btn-from-example" class="btn btn-ghost" type="button">
+              从 example 生成（不覆盖）
+            </button>
+          </div>
+          <div class="hint">
+            修改后点击“保存配置”，再执行任务即可生效。
+          </div>
+        </div>
+      </section>
+
+      <section class="panel main">
+        <div class="tabs">
+          <button id="tab-logs" class="tab tab-active" type="button">
+            日志
+          </button>
+          <button id="tab-config" class="tab" type="button">
+            配置编辑
+          </button>
+        </div>
+
+        <div id="view-logs" class="view view-active">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <label class="check">
+                <input id="auto-scroll" type="checkbox" checked />
+                <span>自动滚动</span>
+              </label>
+            </div>
+            <div class="toolbar-right">
+              <button id="btn-clear-log" class="btn btn-ghost" type="button">
+                清空
+              </button>
+              <button id="btn-copy-log" class="btn btn-ghost" type="button">
+                复制
+              </button>
+            </div>
+          </div>
+          <pre id="log" class="log"></pre>
+        </div>
+
+        <div id="view-config" class="view">
+          <div class="split">
+            <div class="editor">
+              <div class="editor-title">config.toml</div>
+              <textarea id="config-text" spellcheck="false"></textarea>
+            </div>
+            <div class="editor">
+              <div class="editor-title">team.json</div>
+              <textarea id="team-text" spellcheck="false"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+

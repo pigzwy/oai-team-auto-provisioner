@@ -1,6 +1,6 @@
 [project]
 name = "oai-team-auto-provisioner"
-version = "0.1.0"
+version = "0.2.0"
 description = "OpenAI Team 账号自动批量注册 & CRS 入库工具"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,6 +10,7 @@ dependencies = [
     "setuptools>=80.9.0",
     "tomli>=2.3.0",
     "customtkinter>=5.2.2",
+    "pywebview>=6.1",
 ]
 
 [dependency-groups]

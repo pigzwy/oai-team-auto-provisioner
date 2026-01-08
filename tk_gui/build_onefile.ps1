@@ -22,10 +22,15 @@ if ($LASTEXITCODE -ne 0) {
 & $py -m pip install -U pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "Failed to install PyInstaller" }
 
+# Ensure pywebview is available in the packaging environment
+& $py -m pip install -U pywebview
+if ($LASTEXITCODE -ne 0) { throw "Failed to install pywebview" }
+
 & $py -m PyInstaller --noconfirm --clean --onefile --noconsole --name oai-team-gui `
   --specpath "build" `
   --add-data "..\\config.toml.example;." `
   --add-data "..\\team.json.example;." `
+  --add-data "..\\webview_gui\\assets;webview_gui\\assets" `
   "gui_main.py"
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
