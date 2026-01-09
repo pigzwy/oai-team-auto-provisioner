@@ -154,6 +154,26 @@ powershell -ExecutionPolicy Bypass -File .\\tk_gui\\build_onefile.ps1
 
 ---
 
+### 6. 图形化界面（Flet GUI，可选）
+
+> 适合追求更“App 化”外观的桌面 UI；与现有业务逻辑解耦，作为可选技术栈提供。
+
+```bash
+# 安装依赖
+python -m pip install -U flet
+
+# 源码运行
+python -m flet_gui
+
+# 打包（Windows）
+powershell -ExecutionPolicy Bypass -File .\\flet_gui\\build_windows.ps1
+```
+
+- 打包产物：`dist/flet-gui/`
+- 输出记录：同样使用内部存储；需要文件时在「数据/导出」页导出到 `工作目录/exports/`
+
+---
+
 ## 📁 项目结构
 
 ```
@@ -172,6 +192,7 @@ oai-team-auto-provisioner/
 ├── 📊 logger.py              # 日志模块
 ├── 🧩 tk_gui/                # Tkinter 图形界面（旧版，独立目录）
 ├── 🌐 webview_gui/           # pywebview 图形界面（新版，独立目录）
+├── 🎛️ flet_gui/              # Flet 图形界面（可选，独立目录）
 │
 ├── 📝 config.toml.example    # 配置模板
 ├── 🔑 team.json.example      # Team 凭证模板
