@@ -137,7 +137,7 @@ uv run python run.py help
 ```bash
 # 安装依赖（任选其一）
 uv sync
-# 或：pip install -e .
+# 或：pip install -r requirements.txt
 
 # 源码运行
 python -m webview_gui
