@@ -155,6 +155,20 @@ def batch_invite_to_team(emails: list, team: dict) -> dict:
     return result
 
 
+def invite_single_to_team(email: str, team: dict) -> bool:
+    """邀请单个邮箱到 Team
+    
+    Args:
+        email: 邮箱地址
+        team: Team 配置
+        
+    Returns:
+        bool: 是否成功
+    """
+    result = batch_invite_to_team([email], team)
+    return email in result.get("success", [])
+
+
 def get_team_stats(team: dict) -> dict:
     """获取 Team 的统计信息 (席位使用情况)
 
@@ -230,9 +244,10 @@ def check_available_seats(team: dict) -> int:
 
     seats_in_use = stats.get("seats_in_use", 0)
     seats_entitled = stats.get("seats_entitled", 5)  # 默认 5 席位
-    pending = len(get_pending_invites(team))
+    pending_invites = stats.get("pending_invites", 0)  # 待处理邀请数
 
-    available = seats_entitled - seats_in_use - pending
+    # 可用席位 = 总席位 - 已使用席位 - 待处理邀请 (待处理邀请也算预占用)
+    available = seats_entitled - seats_in_use - pending_invites
     return max(0, available)
 
 
@@ -244,10 +259,14 @@ def print_team_summary(team: dict):
     log.info(f"{team['name']} 状态 (ID: {team['account_id'][:8]}...)", icon="team")
 
     if stats:
-        seats_info = f"席位: {stats.get('seats_in_use', '?')}/{stats.get('seats_entitled', '?')}"
-        pending_info = f"待处理邀请: {len(pending)}"
-        available = stats.get('seats_entitled', 5) - stats.get('seats_in_use', 0) - len(pending)
-        available_info = f"可用席位: {available}"
+        seats_in_use = stats.get('seats_in_use', 0)
+        seats_entitled = stats.get('seats_entitled', 5)
+        pending_count = stats.get('pending_invites', 0)
+        # 可用席位 = 总席位 - 已使用 - 待处理邀请
+        available = seats_entitled - seats_in_use - pending_count
+        seats_info = f"席位: {seats_in_use}/{seats_entitled}"
+        pending_info = f"待处理邀请: {pending_count}"
+        available_info = f"可用席位: {max(0, available)}"
         log.info(f"{seats_info} | {pending_info} | {available_info}")
     else:
         log.warning("无法获取状态信息")

@@ -15,12 +15,14 @@
 ## ✨ 功能特性
 
 - 🔄 **全自动化流程** - 从邮箱创建到 CRS 入库一键完成
-- 📧 **批量邮箱创建** - 支持多域名随机生成邮箱
+- 📧 **多邮箱系统支持** - 支持 KYX 自建邮箱和 GPTMail 临时邮箱
 - 👥 **Team 批量邀请** - 一次性邀请多个账号到 Team
 - 🌐 **浏览器自动化** - 基于 DrissionPage 的智能注册
 - 🔐 **OAuth 自动授权** - Codex 授权流程全自动处理
 - 💾 **断点续传** - 支持中断恢复，避免重复操作
 - 📊 **状态追踪** - 详细的账号状态记录与追踪
+- 🌍 **代理轮换** - 支持多代理配置和自动轮换
+- 🎭 **浏览器指纹** - 随机浏览器指纹防检测
 
 ---
 
@@ -43,38 +45,38 @@
 uv sync
 
 # 或使用 pip
-python -m pip install -e .
+pip install -r requirements.txt
 ```
 
-### 2. 配置（程序内置，推荐）
-
-> 配置通过 GUI 保存到**程序内部存储**（Windows：当前用户注册表），不再需要在目录里维护 `config.toml` / `team.json`。
+### 2. 配置文件
 
 ```bash
-# 启动 GUI（推荐）
-python -m webview_gui
+# 复制配置模板
+cp config.toml.example config.toml
+cp team.json.example team.json
 ```
 
-- 在 GUI「配置编辑」页点击“从 example 生成”
-- 填写并点击“保存配置”
-- 保存后 CLI（`python run.py`）和 GUI 会共用同一份配置
-
-### 3. 配置内容说明（在 GUI 中编辑）
+### 3. 编辑配置
 
 #### `config.toml` - 主配置文件
 
 ```toml
-# 邮箱配置（两种模式二选一：Cloud Mail 或 GPTMail）
+# 邮箱系统选择: "cloudmail" 或 "gptmail"
+email_provider = "cloudmail"
+
+# Cloud Mail 邮箱服务配置 (email_provider = "cloudmail" 时使用)
+# 项目: https://github.com/maillab/cloud-mail
+# API 文档: https://doc.skymail.ink/api/api-doc.html
 [email]
-# 1) Cloud Mail（默认）
 api_base = "https://your-email-service.com/api/public"
 api_auth = "your-api-auth-token"
 domains = ["domain1.com", "domain2.com"]
 
-# 2) GPTMail 随机邮箱（可选，启用后将忽略上面的 Cloud Mail 配置）
-use_gptmail = false
-gptmail_api_base = "https://mail.chatgpt.org.uk"
-gptmail_api_key = "gpt-test"
+# GPTMail 临时邮箱配置 (email_provider = "gptmail" 时使用)
+[gptmail]
+api_base = "https://mail.chatgpt.org.uk"
+api_key = "gpt-test"
+domains = []  # 留空使用默认域名
 
 # CRS 服务配置
 [crs]
@@ -85,6 +87,14 @@ admin_token = "your-admin-token"
 [account]
 default_password = "YourSecurePassword@2025"
 accounts_per_team = 4
+
+# 代理配置 (可选，支持多个代理轮换)
+[[proxies]]
+type = "socks5"
+host = "127.0.0.1"
+port = 1080
+username = ""
+password = ""
 
 # 更多配置项请参考 config.toml.example
 ```
@@ -128,29 +138,6 @@ uv run python run.py status
 uv run python run.py help
 ```
 
-### 5. 图形化界面（pywebview WebView GUI）
-
-> 适合 Windows 一键运行/打包，界面更现代；尽量不改动现有业务代码。
->
-> 前置条件：Windows 需要安装 **Microsoft Edge WebView2 Runtime**（多数系统已自带；缺失时程序会弹窗提示下载地址）。
-
-```bash
-# 安装依赖（任选其一）
-uv sync
-# 或：python -m pip install -e .
-
-# 源码运行
-python -m webview_gui
-
-# 打包为单文件 EXE（Windows）
-powershell -ExecutionPolicy Bypass -File .\\webview_gui\\build_onefile.ps1
-```
-
-- 打包产物：`dist/oai-team-gui.exe`
-- EXE 运行时：首次启动后在 GUI「配置编辑」页保存配置（配置存于程序内部存储，无需外置 `config.toml` / `team.json`）
-- 新增模式：GUI「运行」页提供“批量注册 OpenAI（仅注册）”，支持邮箱来源选择（域名邮箱/随机邮箱）
-- 输出记录：账号/凭据/追踪都写入程序内部存储；需要文件时在「数据/导出」页导出到 `工作目录/exports/`
-
 ---
 
 ## 📁 项目结构
@@ -160,7 +147,6 @@ oai-team-auto-provisioner/
 │
 ├── 🚀 run.py                 # 主入口脚本
 ├── ⚙️  config.py              # 配置加载模块
-├── 🖥️ gui_main.py            # GUI 打包入口（PyInstaller）
 │
 ├── 📧 email_service.py       # 邮箱服务 (创建用户、获取验证码)
 ├── 👥 team_service.py        # Team 服务 (邀请管理)
@@ -169,14 +155,13 @@ oai-team-auto-provisioner/
 │
 ├── 🛠️  utils.py               # 工具函数 (CSV、状态追踪)
 ├── 📊 logger.py              # 日志模块
-├── 🌐 webview_gui/           # pywebview 图形界面（WebView2）
 │
 ├── 📝 config.toml.example    # 配置模板
 ├── 🔑 team.json.example      # Team 凭证模板
 │
 └── 📂 自动生成文件
-    ├── %LOCALAPPDATA%/OaiTeamAutoProvisioner/data.sqlite  # 内部输出记录（账号/凭据/追踪）
-    └── exports/              # 手动导出时生成（CSV/JSON）
+    ├── accounts.csv          # 账号记录
+    └── team_tracker.json     # 状态追踪
 ```
 
 ---
@@ -200,7 +185,7 @@ oai-team-auto-provisioner/
     ┃                                                                    ┃
     ┃      ┌─────────────────────────────────────────────────────┐       ┃
     ┃      │  📧 STEP 1 │ 批量创建邮箱                            │       ┃
-    ┃      │            │ Cloud Mail / GPTMail → 返回邮箱列表     │       ┃
+    ┃      │            │ 随机域名 → API 创建 → 返回邮箱列表      │       ┃
     ┃      └─────────────────────────────┬───────────────────────┘       ┃
     ┃                                    ▼                               ┃
     ┃      ┌─────────────────────────────────────────────────────┐       ┃
@@ -241,7 +226,7 @@ oai-team-auto-provisioner/
 
 | 阶段 | 操作 | 说明 |
 |:---:|------|------|
-| 📧 | **创建邮箱** | 根据配置选择 Cloud Mail 或 GPTMail，批量生成邮箱地址 |
+| 📧 | **创建邮箱** | 随机选择域名，调用 Cloud Mail API 批量创建邮箱账号 |
 | 👥 | **Team 邀请** | 使用 Team 管理员 Token 一次性邀请所有邮箱 |
 | 🌐 | **浏览器注册** | DrissionPage 自动化完成 ChatGPT 注册流程 |
 | 🔐 | **OAuth 授权** | 生成授权链接，自动登录获取 Codex Token |
@@ -279,9 +264,10 @@ flowchart TB
 
 ## 📊 输出文件
 
-- 默认不在工作目录生成 `accounts.csv` / `created_credentials.csv` / `team_tracker.json`
-- 记录会写入程序内部存储（Windows：`%LOCALAPPDATA%/OaiTeamAutoProvisioner/data.sqlite`）
-- 需要文件时：在 GUI「数据/导出」页导出到 `工作目录/exports/`
+| 文件 | 说明 |
+|------|------|
+| `accounts.csv` | 所有账号记录 (邮箱、密码、Team、状态、CRS ID) |
+| `team_tracker.json` | 每个 Team 的账号处理状态追踪 |
 
 ---
 
@@ -291,13 +277,27 @@ flowchart TB
 <summary>点击展开 config.toml 完整配置</summary>
 
 ```toml
-# ==================== 邮箱服务配置 ====================
+# ==================== 邮箱系统选择 ====================
+# "cloudmail": Cloud Mail 自建邮箱系统，需要先创建用户才能收信
+# "gptmail": GPTMail 临时邮箱，无需创建用户
+email_provider = "cloudmail"
+
+# ==================== Cloud Mail 邮箱服务配置 ====================
+# 项目地址: https://github.com/maillab/cloud-mail
+# API 文档: https://doc.skymail.ink/api/api-doc.html
 [email]
 api_base = "https://your-email-service.com/api/public"
 api_auth = "your-api-auth-token"
 domains = ["example.com", "example.org"]
 role = "gpt-team"
 web_url = "https://your-email-service.com"
+
+# ==================== GPTMail 临时邮箱配置 ====================
+[gptmail]
+api_base = "https://mail.chatgpt.org.uk"
+api_key = "gpt-test"
+prefix = ""
+domains = []
 
 # ==================== CRS 服务配置 ====================
 [crs]
@@ -334,7 +334,19 @@ max_retries = 20
 wait_timeout = 60
 short_wait = 10
 
-# 输出记录已改为程序内部存储（无需配置 [files]）。
+# ==================== 代理配置 ====================
+# 支持多个代理轮换使用
+# [[proxies]]
+# type = "socks5"
+# host = "127.0.0.1"
+# port = 1080
+# username = ""
+# password = ""
+
+# ==================== 文件配置 ====================
+[files]
+csv_file = "accounts.csv"
+tracker_file = "team_tracker.json"
 ```
 
 </details>
@@ -345,14 +357,26 @@ short_wait = 10
 
 此工具需要配合以下服务使用：
 
-### 📧 邮箱服务 - Cloud Mail
+### 📧 邮箱服务
 
-本项目使用 [**Cloud Mail**](https://github.com/maillab/cloud-mail) 作为临时邮箱服务，用于创建邮箱账号和获取验证码。
+本项目支持两种邮箱服务：
+
+#### 1. Cloud Mail (自建邮箱)
+
+使用 [**Cloud Mail**](https://github.com/maillab/cloud-mail) 作为自建邮箱服务。
 
 - **项目地址**: [https://github.com/maillab/cloud-mail](https://github.com/maillab/cloud-mail)
 - **API 文档**: [https://doc.skymail.ink/api/api-doc.html](https://doc.skymail.ink/api/api-doc.html)
 
-> 💡 **获取 API Token**: 请参考 [API 文档](https://doc.skymail.ink/api/api-doc.html) 了解如何获取 `api_auth` token，然后填入 `config.toml` 的 `[email]` 配置中。
+> 💡 配置 `email_provider = "cloudmail"` 并填写 `[email]` 配置
+
+#### 2. GPTMail (临时邮箱)
+
+使用 GPTMail 临时邮箱服务，无需创建用户即可收信。
+
+- **API 文档**: [https://www.chatgpt.org.uk/2025/11/gptmailapiapi.html](https://www.chatgpt.org.uk/2025/11/gptmailapiapi.html)
+
+> 💡 配置 `email_provider = "gptmail"` 并填写 `[gptmail]` 配置
 
 ### 🔐 CRS 服务 - Claude Relay Service
 

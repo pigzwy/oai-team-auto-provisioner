@@ -1,50 +1,68 @@
 # ==================== OaiTeamCrsRegister 配置文件 ====================
 # 复制此文件为 config.toml 并填入你的配置
+# 本配置文件用于管理 OpenAI Team 账号批量注册系统的各项参数
 
 # ==================== 邮箱服务配置 ====================
+# 邮箱系统选择:
+#   - "cloudmail": Cloud Mail 自建邮箱系统，需要先创建用户才能收信
+#   - "gptmail": GPTMail 临时邮箱系统，无需创建用户，直接生成即可收信
+email_provider = "cloudmail"
+
+# ---------- Cloud Mail 邮箱系统配置 ----------
+# 仅当 email_provider = "cloudmail" 时生效
+# 项目地址: https://github.com/maillab/cloud-mail
+# API 文档: https://doc.skymail.ink/api/api-doc.html
 [email]
+# API 接口地址
 api_base = "https://your-email-service.com/api/public"
+# API 鉴权令牌
 api_auth = "your-api-auth-token"
+# 可用邮箱域名列表，随机选择
 domains = ["example.com", "example.org"]
-role = "gpt-team"
+# 邮箱用户角色名称
+role = ""
+# 邮箱 Web 管理界面地址
 web_url = "https://your-email-service.com"
 
-# 是否使用 GPTMail 随机邮箱（true：使用 GPTMail；false：使用上面的邮箱服务）
-use_gptmail = false
-
-# GPTMail 配置（仅在 use_gptmail=true 时生效，默认全随机生成邮箱）
-# 说明：gpt-test 为官方文档提供的测试 key（存在每日额度限制），生产环境建议申请自己的 key
-gptmail_api_base = "https://mail.chatgpt.org.uk"
-gptmail_api_key = "gpt-test"
+# ---------- GPTMail 临时邮箱配置 ----------
+# 仅当 email_provider = "gptmail" 时生效
+# API 文档: https://www.chatgpt.org.uk/2025/11/gptmailapiapi.html
+[gptmail]
+# API 接口地址
+api_base = "https://mail.chatgpt.org.uk"
+# API 密钥 (gpt-test 为测试密钥，每日有调用限制)
+api_key = "gpt-test"
+# 邮箱前缀 (留空则自动生成 {8位随机字符}-oaiteam 格式)
+prefix = ""
+# 可用域名列表，生成邮箱时随机选择 (留空使用默认域名)
+domains = []
 
 # ==================== CRS 服务配置 ====================
+# CRS (Central Registration Service) 用于管理注册账号的中心服务
 [crs]
+# CRS API 接口地址
 api_base = "https://your-crs-service.com"
+# 管理员令牌，用于调用 CRS 管理接口
 admin_token = "your-admin-token"
-
-# ==================== 入库目标 ====================
-[sink]
-use_sub2api = false
-
-# ==================== Sub2API 服务配置 ====================
-[sub2api]
-api_base = "https://your-sub2api.com"
-admin_api_key = "admin-xxxxxxxx"
-admin_jwt = ""
-proxy_id = 0
-openai_group_ids = [1]
-openai_concurrency = 3
-openai_priority = 50
+# 是否将 team.json 中的 Team 管理员账号也添加到 CRS
+# 开启后，运行时会自动将 team.json 中的账号同步到 CRS 账号池
+# Team Owner 会使用一次性验证码 (OTP) 登录进行 Codex 授权
+# 注意: 请确保 Team 管理员账号邮箱可以接收验证码
+include_team_owners = false
 
 # ==================== 账号配置 ====================
 [account]
+# 注册账号的默认密码 (需符合 OpenAI 密码要求: 至少8位，包含大小写字母、数字、特殊字符)
 default_password = "YourSecurePassword@2025"
+# 每个 Team 下创建的账号数量
 accounts_per_team = 4
 
 # ==================== 注册配置 ====================
 [register]
+# 注册时使用的用户名 (实际会使用随机生成的英文名)
 name = "test"
 
+# 注册时使用的生日信息
 [register.birthday]
 year = "2000"
 month = "01"
@@ -52,18 +70,54 @@ day = "01"
 
 # ==================== 请求配置 ====================
 [request]
+# HTTP 请求超时时间 (秒)
 timeout = 30
+# 浏览器 User-Agent 字符串
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
 
 # ==================== 验证码配置 ====================
 [verification]
+# 等待验证码的总超时时间 (秒)
 timeout = 60
+# 轮询邮箱的间隔时间 (秒)
 interval = 3
+# 最大重试次数 (总等待时间 = interval * max_retries)
 max_retries = 20
 
 # ==================== 浏览器配置 ====================
 [browser]
+# 等待页面元素的超时时间 (秒)
 wait_timeout = 60
+# 短等待时间，用于快速检查 (秒)
 short_wait = 10
 
-# 输出记录已改为程序内部存储（无需配置 [files]）。
+# ==================== 代理配置 ====================
+# 是否启用代理 (默认关闭)
+proxy_enabled = false
+
+# 支持配置多个代理，程序会轮换使用
+# type: 代理类型 (socks5/http/https)
+# host: 代理服务器地址
+# port: 代理端口
+# username/password: 代理认证信息 (可选)
+
+# [[proxies]]
+# type = "socks5"
+# host = "127.0.0.1"
+# port = 1080
+# username = ""
+# password = ""
+
+# [[proxies]]
+# type = "http"
+# host = "proxy.example.com"
+# port = 8080
+# username = "user"
+# password = "pass"
+
+# ==================== 文件配置 ====================
+[files]
+# 导出账号信息的 CSV 文件路径
+csv_file = "accounts.csv"
+# Team 注册进度追踪文件路径
+tracker_file = "team_tracker.json"
