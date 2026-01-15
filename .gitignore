@@ -21,6 +21,14 @@ team_tracker.json
 exports/
 oai-team-gui-log-*.txt
 
+# Logs / runtime artifacts (often contain secrets)
+logs/
+*.log
+
+# Temporary outputs (often contain tokens)
+tools/register_results*.txt
+
+
 # IDE
 .idea/
 .vscode/
