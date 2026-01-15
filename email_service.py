@@ -354,44 +354,43 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
 
     log.info(f"等待验证码邮件: {email}", icon="email")
 
-    initial_email_count = 0
-    try:
-        response = http_session.post(url, headers=headers, json=payload, timeout=REQUEST_TIMEOUT)
-        data = response.json()
-        if data.get("code") == 200:
-            initial_email_count = len(data.get("data", []))
-    except Exception:
-        pass
-
     email_time_holder = [None]
 
     def fetch_emails():
         response = http_session.post(url, headers=headers, json=payload, timeout=REQUEST_TIMEOUT)
         data = response.json()
-        if data.get("code") == 200:
-            emails = data.get("data", [])
-            if emails and len(emails) > initial_email_count:
-                return emails
-        return None
+        if data.get("code") != 200:
+            return None
+        emails = data.get("data", [])
+        return emails if emails else None
 
-    def extract_code_from_subject(subject: str) -> str:
+
+    def extract_code(text: str) -> str:
+        if not text:
+            return None
         patterns = [
             r"代码为\s*(\d{6})",
             r"code is\s*(\d{6})",
+            r"verification code[:\s]*(\d{6})",
+            r"验证码[：:\s]*(\d{6})",
             r"(\d{6})",
         ]
         for pattern in patterns:
-            match = re.search(pattern, subject, re.IGNORECASE)
+            match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 return match.group(1)
         return None
 
     def check_for_code(emails):
         latest_email = emails[0]
-        subject = latest_email.get("subject", "")
         email_time_holder[0] = latest_email.get("createTime", "")
 
-        code = extract_code_from_subject(subject)
+        subject = latest_email.get("subject", "") or ""
+        content = latest_email.get("content", "") or ""
+        html = latest_email.get("html", "") or latest_email.get("html_content", "") or ""
+        text = latest_email.get("text", "") or latest_email.get("body", "") or ""
+
+        code = extract_code("\n".join([str(subject), str(content), str(html), str(text)]))
         return code
 
     result = poll_with_retry(
