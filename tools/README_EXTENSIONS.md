@@ -58,8 +58,24 @@ python tools/batch_register.py register 4 10
 5.  **套餐选择**：自动选择 "Business" 套餐。
 6.  **结算表单**：
     *   自动填写测试卡信息（卡号、CVC、有效期）。
+    *   **支持从 config.toml 读取真实支付信息**。
     *   **跳过国家选择**（使用默认值，避免下拉框选择失败）。
     *   自动填写地址信息。
+
+**配置方式**：
+在 `config.toml` 末尾添加 `[checkout]` 节：
+```toml
+[checkout]
+card_number = "5354555566667777"
+card_expiry = "12/28"
+card_cvc = "123"
+cardholder_name = "Real User"
+country = "US"
+address_line1 = "123 Real Street"
+city = "New York"
+postal_code = "10001"
+state = "NY"
+```
 
 **调用方式**：
 通常由 `batch_register.py` 自动调用，无需手动运行。

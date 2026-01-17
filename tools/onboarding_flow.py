@@ -178,6 +178,35 @@ def _type_slowly(element, text: str, base_delay: float = 0.08):
         time.sleep(actual_delay)
 
 
+# ==================== 配置加载 ====================
+def load_checkout_config():
+    """加载结算配置 (从 config.toml 的 [checkout] 节)"""
+    config_path = PROJECT_ROOT / "config.toml"
+    default_data = TEST_CHECKOUT_DATA.copy()
+    
+    if not config_path.exists():
+        return default_data
+
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+            
+        with open(config_path, "rb") as f:
+            cfg = tomllib.load(f)
+            checkout = cfg.get("checkout", {})
+            if checkout:
+                # 覆盖默认值
+                for key in default_data:
+                    if key in checkout:
+                        default_data[key] = checkout[key]
+                log.info("已加载 [checkout] 配置")
+    except Exception as e:
+        log.warning(f"加载 checkout 配置失败: {e}")
+    
+    return default_data
+
 # ==================== 引导页流程步骤 ====================
 
 
@@ -191,6 +220,46 @@ def _log_current_url(page, context: str = ""):
             log.info(f"[URL] {url}")
     except Exception:
         pass
+
+
+def step_start_business_trial(page) -> bool:
+    """步骤: 点击 '开始 Business 试用'
+    
+    新版流程的第一步
+    """
+    log.step("查找 '开始 Business 试用' 按钮...")
+    _log_current_url(page, "初始页面")
+    
+    if _wait_and_click(page, "text:开始 Business 试用", timeout=5, required=False):
+        log.success("已点击 '开始 Business 试用'")
+        return True
+        
+    if _wait_and_click(page, "text:Start Business trial", timeout=3, required=False):
+        log.success("已点击 'Start Business trial'")
+        return True
+        
+    log.info("未找到试用按钮，继续下一步...")
+    return False
+
+
+def step_lets_go_popup(page) -> bool:
+    """步骤: 点击 '开始吧' / 'Let's go' 弹窗"""
+    log.step("检查 '开始吧' 弹窗...")
+    time.sleep(1)
+    
+    if _wait_and_click(page, "text:开始吧", timeout=3, required=False):
+        log.success("已点击 '开始吧'")
+        return True
+        
+    if _wait_and_click(page, "text:Let's go", timeout=2, required=False):
+        log.success("已点击 'Let's go'")
+        return True
+        
+    if _wait_and_click(page, "text:Get started", timeout=2, required=False):
+        log.success("已点击 'Get started'")
+        return True
+
+    return False
 
 
 def step_dismiss_popups(page, max_attempts: int = 3) -> bool:
@@ -429,23 +498,12 @@ def step_continue_checkout(page) -> bool:
     return False
 
 
-def step_fill_checkout_form(page) -> bool:
+def step_fill_checkout_form(page, email_override: str = "") -> bool:
     """步骤 8: 填写结算表单 (pay.openai.com)
-
-    表单字段:
-    - email: 邮箱
-    - cardNumber: 卡号
-    - cardExpiry: 有效期 (MM/YY)
-    - cardCvc: CVC
-    - billingName: 持卡人姓名
-    - billingCountry: 国家 (select)
-    - billingAddressLine1: 地址
-    - billingLocality: 城市
-    - billingPostalCode: 邮编
-    - billingAdministrativeArea: 州 (select)
 
     Args:
         page: 浏览器页面实例
+        email_override: 强制使用的邮箱 (通常是注册邮箱)
 
     Returns:
         bool: 是否成功
@@ -462,8 +520,13 @@ def step_fill_checkout_form(page) -> bool:
 
     log.step("填写结算表单...")
 
-    # 使用测试数据
-    data = TEST_CHECKOUT_DATA
+    # 加载配置 (优先使用 config.toml)
+    data = load_checkout_config()
+    
+    # 如果传入了注册邮箱，覆盖配置中的邮箱
+    if email_override:
+        data["email"] = email_override
+        log.info(f"使用注册邮箱: {email_override}")
 
     # 1. 填写邮箱 (#email)
     log.info("  填写邮箱...")
@@ -578,37 +641,95 @@ def step_fill_checkout_form(page) -> bool:
         except Exception:
             pass
 
+    _human_delay()
+
+    # 12. 点击订阅/支付按钮
+    log.step("点击订阅按钮...")
+    # 查找订阅按钮 (通常包含 'Subscribe', 'Pay', '订阅' 等文字)
+    subscribe_btn = None
+    
+    # 尝试多种选择器
+    selectors = [
+        'css:button[type="submit"]',
+        'css:button.SubmitButton',
+        'text:订阅',
+        'text:Subscribe',
+        'text:Pay',
+        'text:Start plan',
+    ]
+    
+    for sel in selectors:
+        try:
+            btn = page.ele(sel, timeout=1)
+            if btn and btn.states.is_displayed and btn.states.is_enabled:
+                subscribe_btn = btn
+                break
+        except Exception:
+            pass
+            
+    if subscribe_btn:
+        try:
+            subscribe_btn.click()
+            log.success("已点击订阅按钮")
+        except Exception as e:
+            log.warning(f"点击订阅按钮失败: {e}")
+    else:
+        log.warning("未找到订阅按钮，请手动点击")
+
     log.success("表单填写完成")
     return True
 
 
 def step_payment_success_continue(page) -> bool:
-    """步骤 9: 付款成功后点击继续
-
-    等待跳转到 https://chatgpt.com/payments/success-team
-
-    元素: <button class="btn relative btn-primary btn-large w-full">
-            <div class="flex items-center justify-center">继续</div>
-          </button>
-
-    Args:
-        page: 浏览器页面实例
-
-    Returns:
-        bool: 是否成功
+    """步骤 9: 智能等待付款成功并点击继续
+    
+    实时监听 URL 变化，一旦检测到成功页面立即响应
     """
-    log.step("等待付款成功页面...")
+    # 最大等待时间 (5分钟)
+    MAX_WAIT = 300
+    CHECK_INTERVAL = 1  # 每秒检查一次
+    
+    log.step(f"等待付款成功页面 (最大超时: {MAX_WAIT}秒)...")
+    log.info("请在此期间手动完成 3D 验证或人机验证...")
+    _log_current_url(page, "等待付款前")
 
-    # 等待跳转到付款成功页面
-    if not _wait_for_url(page, "chatgpt.com/payments/success", timeout=120):
-        log.warning("未检测到付款成功页面")
-        return False
+    start_time = time.time()
+    success_detected = False
+    
+    while time.time() - start_time < MAX_WAIT:
+        try:
+            current_url = page.url
+            # 检测成功 URL 特征
+            if "chatgpt.com/payments/success" in current_url:
+                log.success(f"检测到付款成功页面! ({int(time.time() - start_time)}s)")
+                _log_current_url(page, "付款成功页")
+                success_detected = True
+                break
+                
+            # 可选: 检测是否还在 stripe/支付中间页
+            if "pay.openai.com" in current_url or "stripe.com" in current_url:
+                # 还在支付流程中，继续等待
+                pass
+            
+            # 每 10 秒打印一次心跳，避免用户以为卡死
+            elapsed = int(time.time() - start_time)
+            if elapsed > 0 and elapsed % 10 == 0:
+                # 只在控制台显示，不记录到 log 文件以免刷屏 (如果 logger 支持的话)
+                pass 
+                
+        except Exception:
+            pass
+            
+        time.sleep(CHECK_INTERVAL)
 
-    log.success(f"付款成功: {page.url}")
+    if not success_detected:
+        log.warning("等待超时，未检测到付款成功页面 (但这可能只是 URL 没变，尝试继续...)")
+        _log_current_url(page, "超时后页面")
+
     _step_delay()
 
     # 点击继续
-    log.step("点击继续...")
+    log.step("尝试点击继续按钮...")
     if _wait_and_click(
         page, "css:button.btn-primary", timeout=STEP_TIMEOUT, required=False
     ):
@@ -716,6 +837,80 @@ def step_keep_browser_open(page):
 # ==================== 主流程函数 ====================
 
 
+def step_inject_promo_checkout(page) -> bool:
+    """步骤: 注入 JS 强制跳转到带优惠的结算页
+    
+    使用 team-1-month-free 优惠码直接调用 API
+    """
+    log.step("注入优惠码并跳转结算页...")
+    
+    js_code = """
+    (async function (){
+        try {
+            const t = await (await fetch("/api/auth/session")).json();
+            if (!t.accessToken){
+                return "NO_TOKEN";
+            } 
+            const p = {
+                plan_name: "chatgptteamplan",
+                team_plan_data: {
+                    workspace_name: "MyTeam", 
+                    price_interval: "month",
+                    seat_quantity: 3
+                },
+                promo_campaign: {
+                    promo_campaign_id: "team-1-month-free",
+                    is_coupon_from_query_param: true
+                },
+                checkout_ui_mode: "redirect"
+            };
+            const r = await fetch("https://chatgpt.com/backend-api/payments/checkout", {
+                method: "POST",
+                headers: {
+                    Authorization: "Bearer " + t.accessToken,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(p)
+            });
+            const d = await r.json();
+            if (d.url) {
+                window.location.href = d.url;
+                return "SUCCESS";
+            } else {
+                return "ERROR: " + (d.detail || JSON.stringify(d));
+            }
+        } catch (e) {
+            return "EXCEPTION: " + e;
+        }
+    })();
+    """
+    
+    try:
+        # 确保先加载主页以获取 context
+        if "chatgpt.com" not in page.url:
+            page.get("https://chatgpt.com")
+            time.sleep(3)
+            
+        result = page.run_js(js_code)
+        log.info(f"JS 执行结果: {result}")
+        
+        if result == "NO_TOKEN":
+            log.warning("未检测到 accessToken，可能未登录")
+            return False
+            
+        # 等待跳转
+        if _wait_for_url(page, "pay.openai.com", timeout=20):
+            log.success("成功跳转到优惠结算页")
+            return True
+            
+        log.warning("未跳转到支付页面 (JS执行看似成功但URL未变)")
+        return False
+        
+    except Exception as e:
+        log.error(f"注入 JS 失败: {e}")
+        return False
+
+
 def run_onboarding_flow(
     page,
     email: str = "",
@@ -724,7 +919,7 @@ def run_onboarding_flow(
     address: str = "",
     skip_checkout: bool = False,
 ) -> tuple[bool, dict]:
-    """执行完整的引导页流程
+    """执行完整的引导页流程 (JS 注入模式)
 
     Args:
         page: 浏览器页面实例 (已登录状态)
@@ -737,44 +932,35 @@ def run_onboarding_flow(
     Returns:
         tuple: (是否成功, session数据)
     """
-    log.header("开始引导页流程")
+    log.header("开始引导页流程 (JS 注入模式)")
 
     try:
-        # 步骤 1-2: 处理初始弹窗
-        step_dismiss_popups(page)
+        # 步骤 1: 处理初始弹窗 (如果有)
+        _log_current_url(page, "开始前")
+        step_dismiss_popups(page, max_attempts=1)
 
-        # 步骤 3: 跳过导览
-        step_skip_tour(page)
+        # 步骤 2: 注入优惠码并跳转
+        _log_current_url(page, "注入JS前")
+        if not step_inject_promo_checkout(page):
+            log.error("无法跳转到优惠结算页，流程终止")
+            return False, {}
 
-        # 步骤 4: 点击继续
-        step_click_continue(page)
-        time.sleep(1)
-
-        # 步骤 5: 选择免费赠品
-        step_select_free_gift(page)
-        _step_delay()  # 随机延迟 2-3s
-
-        # 步骤 6: 选择 Business 套餐
-        step_select_business(page)
-        _step_delay()  # 随机延迟 2-3s
-
-        # 步骤 7: 继续结算
-        step_continue_checkout(page)
-        _step_delay()  # 随机延迟 2-3s
-
-        # 步骤 8: 填写结算表单
+        # 步骤 3: 填写结算表单
+        _log_current_url(page, "填写表单前")
         if not skip_checkout:
-            step_fill_checkout_form(page)
+            step_fill_checkout_form(page, email_override=email)
         else:
             log.info("跳过结算表单填写")
 
-        # 步骤 9: 付款成功后点击继续
+        # 步骤 4: 付款成功后点击继续 (包含智能等待)
         step_payment_success_continue(page)
 
-        # 步骤 10: 跳过团队名称
+        # 步骤 5: 跳过团队名称
+        _log_current_url(page, "跳过团队名前")
         step_skip_team_name(page)
 
-        # 步骤 11: 获取 session 数据
+        # 步骤 6: 获取 session 数据
+        _log_current_url(page, "获取Session前")
         session_data = step_get_session_data(page)
 
         log.success("引导流程执行完成")
