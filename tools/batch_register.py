@@ -306,31 +306,11 @@ def print_usage():
     log.info("  python tools/batch_register.py register 4 10")
 
 if __name__ == "__main__":
-    try:
+    # 防止代理拦截本地 CDP 端口 (解决 Handshake 404 问题)
+    no_proxy_list = "localhost,127.0.0.1,0.0.0.0,::1"
+    os.environ["no_proxy"] = no_proxy_list
+    os.environ["NO_PROXY"] = no_proxy_list
 
-        from DrissionPage import ChromiumOptions
-
-        original_init = ChromiumOptions.__init__
-
-        def patched_init(self, read_file=True, ini_path=None):
-            if ini_path is None:
-                original_init(self, read_file=read_file)
-            else:
-                original_init(self, read_file=read_file, ini_path=ini_path)
-            
-            self.set_argument('--headless=new')
-            self.set_argument('--no-sandbox')
-            self.set_argument('--disable-gpu')
-            self.set_argument('--disable-dev-shm-usage')
-
-        ChromiumOptions.__init__ = patched_init
-        log.info("已应用 Linux 无头模式补丁")
-
-    except Exception as e:
-        log.warning(f"应用 Linux 补丁失败: {e}")
-
-
-if __name__ == "__main__":
     try:
         if len(sys.argv) < 2:
             print_usage()
