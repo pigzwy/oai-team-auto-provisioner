@@ -801,6 +801,7 @@ def step_get_session_data(page) -> dict:
         # 解析 JSON
         session_data = json.loads(page_text)
         log.success("已获取 session 数据")
+        log.info(f"Session 数据: {json.dumps(session_data, indent=2, ensure_ascii=False)}")
         return session_data
 
     except Exception as e:
