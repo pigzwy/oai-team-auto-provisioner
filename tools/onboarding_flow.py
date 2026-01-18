@@ -854,9 +854,9 @@ def step_inject_promo_checkout(page) -> bool:
             const p = {
                 plan_name: "chatgptteamplan",
                 team_plan_data: {
-                    workspace_name: "MyTeam", 
+                    workspace_name: "MyTeam",
                     price_interval: "month",
-                    seat_quantity: 3
+                    seat_quantity: 5
                 },
                 promo_campaign: {
                     promo_campaign_id: "team-1-month-free",
