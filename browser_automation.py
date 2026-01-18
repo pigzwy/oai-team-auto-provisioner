@@ -2462,6 +2462,9 @@ def _fetch_session_data(page) -> dict:
         account = data.get('account', {})
         account_id = account.get('id') if account else None
 
+        # 打印完整 session 数据
+        log.info(f"Session 数据: {json_module.dumps(data, indent=2, ensure_ascii=False)}")
+
         if token:
             log.success(f"获取 Session 成功: {user.get('email', 'unknown')}")
             if account_id:
