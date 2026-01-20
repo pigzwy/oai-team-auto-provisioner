@@ -450,16 +450,6 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
 
     log.info(f"等待验证码邮件: {email}", icon="email")
 
-    # 记录初始邮件数量，用于检测新邮件
-    initial_email_count = 0
-    try:
-        response = http_session.post(url, headers=headers, json=payload, timeout=REQUEST_TIMEOUT)
-        data = response.json()
-        if data.get("code") == 200:
-            initial_email_count = len(data.get("data", []))
-    except Exception:
-        pass
-
     # 用于存储邮件时间的闭包变量
     email_time_holder = [None]
 
@@ -467,12 +457,10 @@ def get_verification_code(email: str, max_retries: int = None, interval: int = N
         """获取邮件列表"""
         response = http_session.post(url, headers=headers, json=payload, timeout=REQUEST_TIMEOUT)
         data = response.json()
-        if data.get("code") == 200:
-            emails = data.get("data", [])
-            # 只返回有新邮件时的数据
-            if emails and len(emails) > initial_email_count:
-                return emails
-        return None
+        if data.get("code") != 200:
+            return None
+        emails = data.get("data", [])
+        return emails if emails else None
 
     def extract_code_from_subject(subject: str) -> str:
         """从主题中提取验证码"""
